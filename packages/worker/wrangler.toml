@@ -1,0 +1,54 @@
+name = "cfdrive-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 开发服务器配置
+[dev]
+port = 8787
+local_protocol = "http"
+
+# D1 数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "cfdrive-db"
+database_id = "local-dev-db"
+migrations_dir = "migrations"
+
+# KV 命名空间 (用于缓存等)
+[[kv_namespaces]]
+binding = "CACHE"
+id = "cfdrive-cache-dev"
+
+# R2 存储桶 (用于缩略图等)
+[[r2_buckets]]
+binding = "THUMBNAILS"
+bucket_name = "cfdrive-thumbnails-dev"
+
+# 环境变量 (敏感信息使用 .dev.vars 或 secrets)
+[vars]
+APP_ENV = "development"
+
+# 生产环境配置
+[env.production]
+name = "cfdrive-worker"
+
+[env.production.vars]
+APP_ENV = "production"
+
+# 生产环境 D1
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "cfdrive-db"
+database_id = "your-production-db-id"
+migrations_dir = "migrations"
+
+# 生产环境 KV
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "your-production-kv-id"
+
+# 生产环境 R2
+[[env.production.r2_buckets]]
+binding = "THUMBNAILS"
+bucket_name = "cfdrive-thumbnails"

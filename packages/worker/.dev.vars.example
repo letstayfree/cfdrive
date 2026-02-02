@@ -1,0 +1,13 @@
+# Azure AD 配置
+AZURE_CLIENT_ID=your-client-id
+AZURE_CLIENT_SECRET=your-client-secret
+AZURE_TENANT_ID=your-tenant-id
+
+# JWT 密钥 (用于签发 session token)
+JWT_SECRET=your-random-jwt-secret-at-least-32-chars
+
+# 应用 URL
+APP_URL=http://localhost:5173
+
+# 环境
+NODE_ENV=development

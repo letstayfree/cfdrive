@@ -1,0 +1,27 @@
+{
+  "name": "cfdrive",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A cloud drive application based on Cloudflare Workers & Pages with OneDrive backend",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:worker\" \"npm run dev:web\"",
+    "dev:worker": "npm --prefix packages/worker run dev",
+    "dev:web": "npm --prefix packages/web run dev",
+    "build": "npm --prefix packages/web run build && npm --prefix packages/worker run build",
+    "test": "npm --prefix packages/worker run test && npm --prefix packages/web run test",
+    "test:worker": "npm --prefix packages/worker run test",
+    "test:web": "npm --prefix packages/web run test",
+    "db:migrate": "npm --prefix packages/worker run db:migrate",
+    "lint": "npm --prefix packages/worker run lint && npm --prefix packages/web run lint",
+    "format": "prettier --write \"packages/**/*.{ts,tsx,js,jsx,json,css,md}\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "prettier": "^3.2.4",
+    "rimraf": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}

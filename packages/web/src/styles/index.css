@@ -1,0 +1,181 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* 文件选中状态 */
+.file-item-selected {
+  @apply bg-primary-50 dark:bg-primary-900/30 border-primary-300 dark:border-primary-700;
+}
+
+/* 拖拽上传区域 */
+.dropzone-active {
+  @apply border-primary-500 bg-primary-50 dark:bg-primary-900/20;
+}
+
+/* 上下文菜单 */
+.context-menu {
+  @apply absolute z-50 min-w-48 py-1 bg-white dark:bg-dark-800 rounded-lg shadow-lg border border-dark-200 dark:border-dark-700 animate-scale-in;
+}
+
+.context-menu-item {
+  @apply flex items-center gap-3 px-4 py-2 text-sm text-dark-700 dark:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700 cursor-pointer transition-colors;
+}
+
+.context-menu-item.danger {
+  @apply text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30;
+}
+
+.context-menu-divider {
+  @apply my-1 border-t border-dark-200 dark:border-dark-700;
+}
+
+/* 模态框 */
+.modal-overlay {
+  @apply fixed inset-0 z-50 bg-black/50 flex items-center justify-center animate-fade-in;
+}
+
+.modal-content {
+  @apply bg-white dark:bg-dark-800 rounded-xl shadow-xl max-w-md w-full mx-4 animate-scale-in;
+}
+
+/* 按钮样式 */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-primary {
+  @apply bg-primary-600 text-white hover:bg-primary-700 active:bg-primary-800;
+}
+
+.btn-secondary {
+  @apply bg-dark-100 dark:bg-dark-700 text-dark-700 dark:text-dark-200 hover:bg-dark-200 dark:hover:bg-dark-600;
+}
+
+.btn-danger {
+  @apply bg-red-600 text-white hover:bg-red-700 active:bg-red-800;
+}
+
+.btn-ghost {
+  @apply text-dark-600 dark:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-700;
+}
+
+/* 输入框样式 */
+.input {
+  @apply w-full px-3 py-2 bg-white dark:bg-dark-800 border border-dark-300 dark:border-dark-600 rounded-lg text-dark-900 dark:text-dark-100 placeholder-dark-400 dark:placeholder-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-colors;
+}
+
+.input-error {
+  @apply border-red-500 focus:ring-red-500;
+}
+
+/* 骨架屏加载 */
+.skeleton {
+  @apply bg-dark-200 dark:bg-dark-700 rounded animate-pulse;
+}
+
+/* 文件类型图标颜色 */
+.file-icon-folder {
+  @apply text-yellow-500;
+}
+
+.file-icon-image {
+  @apply text-green-500;
+}
+
+.file-icon-video {
+  @apply text-purple-500;
+}
+
+.file-icon-audio {
+  @apply text-pink-500;
+}
+
+.file-icon-document {
+  @apply text-blue-500;
+}
+
+.file-icon-archive {
+  @apply text-orange-500;
+}
+
+.file-icon-code {
+  @apply text-emerald-500;
+}
+
+.file-icon-default {
+  @apply text-dark-400;
+}
+
+/* 动画关键帧 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.15s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.2s ease-out;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.15s ease-out;
+}
