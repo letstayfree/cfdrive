@@ -18,7 +18,7 @@ CFDrive 是一个基于 Cloudflare 生态系统的企业级网盘应用，使用
 
 | 模块 | 功能 | 状态 |
 |-----|------|-----|
-| **认证系统** | 登录/登出、JWT Token | ✅ |
+| **认证系统** | 登录/登出、JWT Token、会话管理 | ✅ |
 | **初始设置** | 创建首个超级管理员 | ✅ |
 | **OAuth** | Azure AD 授权连接 OneDrive | ✅ |
 | **用户管理** | CRUD、角色分配、权限设置 | ✅ |
@@ -39,17 +39,43 @@ CFDrive 是一个基于 Cloudflare 生态系统的企业级网盘应用，使用
 |-----|------|-----|
 | **登录页** | 用户登录界面 | ✅ |
 | **初始设置页** | 创建管理员账户 | ✅ |
-| **主布局** | 侧边栏 + 顶部导航 + 面包屑 | ✅ |
+| **主布局** | 侧边栏 + 顶部导航 | ✅ |
+| **搜索功能** | 实时搜索文件 + 结果导航 | ✅ |
 | **文件浏览器** | 列表视图 + 网格视图 | ✅ |
 | **右键菜单** | 文件操作上下文菜单 | ✅ |
 | **文件上传** | 拖拽上传 + 进度显示 | ✅ |
+| **文件预览** | 图片/视频/音频/Office/PDF预览 | ✅ |
 | **重命名弹窗** | 文件/文件夹重命名 | ✅ |
 | **删除确认** | 删除确认弹窗 | ✅ |
 | **新建文件夹** | 新建文件夹弹窗 | ✅ |
+| **移动/复制** | 选择目标文件夹对话框 | ✅ |
+| **分享弹窗** | 创建分享链接 + 设置选项 | ✅ |
+| **属性弹窗** | 查看文件详细信息 | ✅ |
 | **分享页面** | 公开分享访问 + 密码验证 | ✅ |
+| **分享管理** | 查看和管理我的分享链接 | ✅ |
 | **设置页面** | OneDrive 连接 + 主题切换 | ✅ |
 | **用户管理** | 用户列表 + 添加/删除用户 | ✅ |
 | **深色模式** | 主题切换 | ✅ |
+
+### 前端组件
+
+| 组件 | 文件 | 说明 |
+|-----|------|-----|
+| FileList | `components/files/FileList.tsx` | 文件列表视图 |
+| FileGrid | `components/files/FileGrid.tsx` | 文件网格视图 |
+| FileUpload | `components/files/FileUpload.tsx` | 文件上传组件 |
+| FilePreview | `components/files/FilePreview.tsx` | 文件预览组件 |
+| ContextMenu | `components/files/ContextMenu.tsx` | 右键菜单 |
+| RenameModal | `components/files/RenameModal.tsx` | 重命名弹窗 |
+| DeleteModal | `components/files/DeleteModal.tsx` | 删除确认弹窗 |
+| NewFolderModal | `components/files/NewFolderModal.tsx` | 新建文件夹弹窗 |
+| MoveCopyModal | `components/files/MoveCopyModal.tsx` | 移动/复制对话框 |
+| ShareModal | `components/files/ShareModal.tsx` | 分享弹窗 |
+| FileInfoModal | `components/files/FileInfoModal.tsx` | 文件属性弹窗 |
+| SearchBar | `components/layout/SearchBar.tsx` | 搜索栏 |
+| Header | `components/layout/Header.tsx` | 顶部导航 |
+| Sidebar | `components/layout/Sidebar.tsx` | 侧边栏 |
+| Breadcrumb | `components/layout/Breadcrumb.tsx` | 面包屑导航 |
 
 ### 数据库表
 
@@ -76,7 +102,7 @@ CFDrive 是一个基于 Cloudflare 生态系统的企业级网盘应用，使用
 # Azure AD 配置
 AZURE_CLIENT_ID=your-client-id
 AZURE_CLIENT_SECRET=your-client-secret
-AZURE_TENANT_ID=your-tenant-id
+AZURE_TENANT_ID=common
 
 # 应用配置
 JWT_SECRET=your-jwt-secret-key
@@ -87,15 +113,17 @@ NODE_ENV=development
 ### Azure AD 应用注册
 
 1. 访问 [Azure Portal](https://portal.azure.com)
-2. 创建新的应用注册
-3. 添加重定向 URI: `http://localhost:5173/api/oauth/callback`
-4. 添加 API 权限:
+2. 搜索 "Microsoft Entra ID" (原 Azure AD)
+3. 创建新的应用注册
+4. 添加重定向 URI: `http://localhost:5173/api/oauth/callback`
+5. 添加 API 权限:
    - `Files.Read`
    - `Files.Read.All`
    - `Files.ReadWrite`
    - `Files.ReadWrite.All`
    - `offline_access`
-5. 创建客户端密钥
+   - `User.Read`
+6. 创建客户端密钥
 
 ---
 
@@ -124,14 +152,13 @@ npm run dev
 
 | 功能 | 优先级 | 说明 |
 |-----|-------|-----|
-| 文件预览 UI | 高 | 图片/视频/Office 在线预览 |
-| 复制/移动对话框 | 中 | 选择目标文件夹 |
-| 收藏功能 | 中 | 添加/取消收藏 |
-| 分享管理列表 | 中 | 查看和管理我的分享 |
-| 回收站 | 低 | 已删除文件恢复 |
+| 收藏功能 | 中 | 添加/取消收藏、收藏列表 |
+| 回收站 | 中 | 已删除文件恢复 |
 | 标签系统 | 低 | 文件标签分类 |
 | 两步验证 | 低 | TOTP 认证 |
 | 批量操作 | 低 | 多选文件操作 |
+| 通知系统 | 低 | 操作提醒 |
+| 文件评论 | 低 | 协作评论功能 |
 
 ---
 
@@ -153,6 +180,8 @@ cfdrive/
 │   └── web/                 # React 前端
 │       └── src/
 │           ├── components/  # UI 组件
+│           │   ├── files/   # 文件相关组件
+│           │   └── layout/  # 布局组件
 │           ├── pages/       # 页面组件
 │           ├── stores/      # Zustand 状态
 │           ├── services/    # API 服务

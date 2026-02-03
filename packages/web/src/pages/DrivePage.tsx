@@ -10,6 +10,10 @@ import ContextMenu from '../components/files/ContextMenu';
 import RenameModal from '../components/files/RenameModal';
 import DeleteModal from '../components/files/DeleteModal';
 import NewFolderModal from '../components/files/NewFolderModal';
+import FilePreview from '../components/files/FilePreview';
+import MoveCopyModal from '../components/files/MoveCopyModal';
+import ShareModal from '../components/files/ShareModal';
+import FileInfoModal from '../components/files/FileInfoModal';
 import Breadcrumb from '../components/layout/Breadcrumb';
 import { Loader2, Grid, List, RefreshCw, FolderPlus, AlertTriangle, Link2 } from 'lucide-react';
 
@@ -50,6 +54,20 @@ export default function DrivePage({ type }: DrivePageProps) {
         items: [],
     });
     const [newFolderModal, setNewFolderModal] = useState(false);
+    const [previewItem, setPreviewItem] = useState<DriveItem | null>(null);
+    const [moveCopyModal, setMoveCopyModal] = useState<{
+        isOpen: boolean;
+        mode: 'move' | 'copy';
+        items: DriveItem[];
+    }>({ isOpen: false, mode: 'move', items: [] });
+    const [shareModal, setShareModal] = useState<{ isOpen: boolean; item: DriveItem | null }>({
+        isOpen: false,
+        item: null,
+    });
+    const [infoModal, setInfoModal] = useState<{ isOpen: boolean; item: DriveItem | null }>({
+        isOpen: false,
+        item: null,
+    });
 
     // 操作状态
     const [isOperating, setIsOperating] = useState(false);
@@ -113,8 +131,7 @@ export default function DrivePage({ type }: DrivePageProps) {
         if (item.folder) {
             navigate(`/drive/${item.id}`);
         } else {
-            // TODO: 打开文件预览
-            console.log('Preview file:', item);
+            setPreviewItem(item);
         }
     }, [navigate]);
 
@@ -179,9 +196,34 @@ export default function DrivePage({ type }: DrivePageProps) {
         }
     }, [folderId, refetch]);
 
+    const handleMoveCopy = useCallback(async (targetFolderId: string) => {
+        if (moveCopyModal.items.length === 0) return;
+
+        setIsOperating(true);
+        try {
+            for (const item of moveCopyModal.items) {
+                if (moveCopyModal.mode === 'move') {
+                    await fileService.move(item.id, targetFolderId);
+                } else {
+                    await fileService.copy(item.id, targetFolderId);
+                }
+            }
+            refetch();
+            setMoveCopyModal({ isOpen: false, mode: 'move', items: [] });
+            clearSelection();
+        } catch (error) {
+            console.error('Move/Copy error:', error);
+        } finally {
+            setIsOperating(false);
+        }
+    }, [moveCopyModal, refetch, clearSelection]);
+
     const handleConnectOneDrive = () => {
         window.location.href = oauthService.getAuthorizeUrl();
     };
+
+    // 获取可预览的文件列表（用于导航）
+    const previewableItems = items.filter(item => !item.folder);
 
     // 特殊类型页面
     if (type === 'favorites') {
@@ -281,8 +323,8 @@ export default function DrivePage({ type }: DrivePageProps) {
                         <button
                             onClick={() => setViewMode('list')}
                             className={`p-2 transition-colors ${viewMode === 'list'
-                                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
-                                : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
+                                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
+                                    : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
                                 }`}
                             title="列表视图"
                         >
@@ -291,8 +333,8 @@ export default function DrivePage({ type }: DrivePageProps) {
                         <button
                             onClick={() => setViewMode('grid')}
                             className={`p-2 transition-colors ${viewMode === 'grid'
-                                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
-                                : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
+                                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
+                                    : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
                                 }`}
                             title="网格视图"
                         >
@@ -331,17 +373,43 @@ export default function DrivePage({ type }: DrivePageProps) {
                             setRenameModal({ isOpen: true, item: contextMenu.item });
                         }
                     }}
-                    onCopy={() => console.log('Copy')}
-                    onMove={() => console.log('Move')}
+                    onCopy={() => {
+                        if (contextMenu.item) {
+                            setMoveCopyModal({ isOpen: true, mode: 'copy', items: [contextMenu.item] });
+                        }
+                    }}
+                    onMove={() => {
+                        if (contextMenu.item) {
+                            setMoveCopyModal({ isOpen: true, mode: 'move', items: [contextMenu.item] });
+                        }
+                    }}
                     onDelete={() => {
                         if (contextMenu.item) {
                             setDeleteModal({ isOpen: true, items: [contextMenu.item] });
                         }
                     }}
-                    onShare={() => console.log('Share')}
+                    onShare={() => {
+                        if (contextMenu.item) {
+                            setShareModal({ isOpen: true, item: contextMenu.item });
+                        }
+                    }}
                     onToggleFavorite={() => console.log('Toggle favorite')}
-                    onShowInfo={() => console.log('Show info')}
+                    onShowInfo={() => {
+                        if (contextMenu.item) {
+                            setInfoModal({ isOpen: true, item: contextMenu.item });
+                        }
+                    }}
                     onNewFolder={!contextMenu.item ? () => setNewFolderModal(true) : undefined}
+                />
+            )}
+
+            {/* 文件预览 */}
+            {previewItem && (
+                <FilePreview
+                    item={previewItem}
+                    items={previewableItems}
+                    onClose={() => setPreviewItem(null)}
+                    onNavigate={(item) => setPreviewItem(item)}
                 />
             )}
 
@@ -371,6 +439,34 @@ export default function DrivePage({ type }: DrivePageProps) {
                 onConfirm={handleNewFolder}
                 isLoading={isOperating}
             />
+
+            {/* 移动/复制弹窗 */}
+            <MoveCopyModal
+                isOpen={moveCopyModal.isOpen}
+                mode={moveCopyModal.mode}
+                items={moveCopyModal.items}
+                onClose={() => setMoveCopyModal({ isOpen: false, mode: 'move', items: [] })}
+                onConfirm={handleMoveCopy}
+                isLoading={isOperating}
+            />
+
+            {/* 分享弹窗 */}
+            {shareModal.item && (
+                <ShareModal
+                    isOpen={shareModal.isOpen}
+                    item={shareModal.item}
+                    onClose={() => setShareModal({ isOpen: false, item: null })}
+                />
+            )}
+
+            {/* 属性弹窗 */}
+            {infoModal.item && (
+                <FileInfoModal
+                    isOpen={infoModal.isOpen}
+                    item={infoModal.item}
+                    onClose={() => setInfoModal({ isOpen: false, item: null })}
+                />
+            )}
         </div>
     );
 }

@@ -600,7 +600,10 @@ files.get('/:id/preview', async (c) => {
 
         return c.json({
             success: true,
-            data: preview,
+            data: {
+                previewUrl: preview.getUrl || preview.postUrl,
+                ...preview
+            },
         });
     } catch (error) {
         console.error('Preview error:', error);

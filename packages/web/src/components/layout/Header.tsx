@@ -2,9 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth';
 import { useThemeStore } from '../../stores/theme';
-import { useFilesStore } from '../../stores/files';
 import {
-    Search,
     Sun,
     Moon,
     Bell,
@@ -12,15 +10,13 @@ import {
     User,
     Settings,
     LogOut,
-    Upload,
 } from 'lucide-react';
-import Breadcrumb from './Breadcrumb';
+import SearchBar from './SearchBar';
 
 export default function Header() {
     const navigate = useNavigate();
     const { user, logout } = useAuthStore();
     const { isDark, toggleTheme } = useThemeStore();
-    const { searchQuery, setSearchQuery } = useFilesStore();
     const [showUserMenu, setShowUserMenu] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
@@ -42,29 +38,11 @@ export default function Header() {
 
     return (
         <header className="h-16 bg-white dark:bg-dark-800 border-b border-dark-200 dark:border-dark-700 flex items-center justify-between px-6">
-            {/* 左侧：面包屑 */}
-            <Breadcrumb />
+            {/* 左侧：搜索 */}
+            <SearchBar />
 
-            {/* 右侧：搜索、操作按钮、用户菜单 */}
+            {/* 右侧：操作按钮、用户菜单 */}
             <div className="flex items-center gap-4">
-                {/* 搜索框 */}
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-dark-400" />
-                    <input
-                        type="text"
-                        placeholder="搜索文件..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-64 pl-10 pr-4 py-2 bg-dark-100 dark:bg-dark-700 rounded-lg text-sm text-dark-900 dark:text-dark-100 placeholder-dark-400 dark:placeholder-dark-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                    />
-                </div>
-
-                {/* 上传按钮 */}
-                <button className="btn btn-primary">
-                    <Upload className="w-4 h-4" />
-                    上传
-                </button>
-
                 {/* 主题切换 */}
                 <button
                     onClick={toggleTheme}
@@ -93,7 +71,7 @@ export default function Header() {
                     </button>
 
                     {showUserMenu && (
-                        <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-dark-800 rounded-lg shadow-lg border border-dark-200 dark:border-dark-700 py-1 z-50 animate-scale-in">
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-dark-800 rounded-lg shadow-lg border border-dark-200 dark:border-dark-700 py-1 z-50 animate-scaleIn">
                             <div className="px-4 py-3 border-b border-dark-200 dark:border-dark-700">
                                 <div className="font-medium text-dark-900 dark:text-dark-100">
                                     {user?.display_name || user?.username}

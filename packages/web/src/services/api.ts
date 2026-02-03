@@ -122,7 +122,7 @@ export const fileService = {
 
     getDownloadUrl: (itemId: string) => api.get<{ downloadUrl: string }>(`/files/${itemId}/download`),
 
-    getPreviewUrl: (itemId: string) => api.get<{ getUrl: string; postUrl: string }>(`/files/${itemId}/preview`),
+    getPreviewUrl: (itemId: string) => api.get<{ previewUrl: string }>(`/files/${itemId}/preview`),
 
     getThumbnail: (itemId: string, size: 'small' | 'medium' | 'large' = 'medium') =>
         api.get<{ url: string }>(`/files/${itemId}/thumbnail?size=${size}`),
@@ -155,13 +155,11 @@ export const shareService = {
     list: () => api.get('/shares'),
 
     create: (options: {
-        fileId: string;
-        filePath: string;
-        fileType: 'file' | 'folder';
+        file_id: string;
         password?: string;
-        expiresIn?: number;
-        maxDownloads?: number;
-    }) => api.post('/shares', options),
+        expires_at?: string;
+        max_downloads?: number;
+    }) => api.post<{ code: string; id: string }>('/shares', options),
 
     get: (shareId: string) => api.get(`/shares/${shareId}`),
 

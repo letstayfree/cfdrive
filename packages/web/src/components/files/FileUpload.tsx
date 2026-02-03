@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Upload, X, File, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { formatFileSize } from '../../utils/file';
-import api from '../../services/api';
+import { fileService } from '../../services/api';
 
 interface UploadFile {
     id: string;
@@ -15,6 +15,10 @@ interface FileUploadProps {
     parentId: string;
     onUploadComplete: () => void;
 }
+
+// 分片大小: 320KB 的倍数 (Microsoft 推荐)
+const CHUNK_SIZE = 320 * 1024 * 10; // 3.2MB
+const MAX_SIMPLE_UPLOAD_SIZE = 4 * 1024 * 1024; // 4MB
 
 export default function FileUpload({ parentId, onUploadComplete }: FileUploadProps) {
     const [isDragging, setIsDragging] = useState(false);
@@ -57,6 +61,14 @@ export default function FileUpload({ parentId, onUploadComplete }: FileUploadPro
         });
     };
 
+    const updateFileProgress = (id: string, progress: number) => {
+        setFiles((prev) =>
+            prev.map((f) =>
+                f.id === id ? { ...f, progress } : f
+            )
+        );
+    };
+
     const uploadSingleFile = async (uploadFile: UploadFile) => {
         try {
             setFiles((prev) =>
@@ -65,25 +77,24 @@ export default function FileUpload({ parentId, onUploadComplete }: FileUploadPro
                 )
             );
 
-            const formData = new FormData();
-            formData.append('file', uploadFile.file);
-            formData.append('parentId', parentId);
+            const fileSize = uploadFile.file.size;
 
-            // 使用 fetch 直接上传以获取进度
-            const response = await api.uploadFile(parentId, uploadFile.file);
-
-            if (response.success) {
-                setFiles((prev) =>
-                    prev.map((f) =>
-                        f.id === uploadFile.id
-                            ? { ...f, status: 'success' as const, progress: 100 }
-                            : f
-                    )
-                );
-                onUploadComplete();
+            if (fileSize <= MAX_SIMPLE_UPLOAD_SIZE) {
+                // 小文件：直接上传
+                await uploadSimple(uploadFile);
             } else {
-                throw new Error(response.error?.message || '上传失败');
+                // 大文件：分片上传
+                await uploadChunked(uploadFile);
             }
+
+            setFiles((prev) =>
+                prev.map((f) =>
+                    f.id === uploadFile.id
+                        ? { ...f, status: 'success' as const, progress: 100 }
+                        : f
+                )
+            );
+            onUploadComplete();
         } catch (error) {
             setFiles((prev) =>
                 prev.map((f) =>
@@ -96,6 +107,59 @@ export default function FileUpload({ parentId, onUploadComplete }: FileUploadPro
                         : f
                 )
             );
+        }
+    };
+
+    // 小文件简单上传
+    const uploadSimple = async (uploadFile: UploadFile) => {
+        const response = await fileService.upload(parentId, uploadFile.file);
+        if (!response.success) {
+            throw new Error(response.error?.message || '上传失败');
+        }
+    };
+
+    // 大文件分片上传
+    const uploadChunked = async (uploadFile: UploadFile) => {
+        const { file, id } = uploadFile;
+        const fileSize = file.size;
+
+        // 1. 创建上传会话
+        const sessionResponse = await fileService.createUploadSession(parentId, file.name, fileSize);
+        if (!sessionResponse.success || !sessionResponse.data) {
+            throw new Error(sessionResponse.error?.message || '创建上传会话失败');
+        }
+
+        const { uploadUrl } = sessionResponse.data;
+
+        // 2. 分片上传
+        let uploadedBytes = 0;
+        const totalChunks = Math.ceil(fileSize / CHUNK_SIZE);
+
+        for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            const start = chunkIndex * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, fileSize);
+            const chunk = file.slice(start, end);
+
+            const contentRange = `bytes ${start}-${end - 1}/${fileSize}`;
+
+            // uploadUrl 是 OneDrive 提供的完整 URL，已包含身份验证信息
+            const response = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Length': chunk.size.toString(),
+                    'Content-Range': contentRange,
+                },
+                body: chunk,
+            });
+
+            if (!response.ok && response.status !== 202 && response.status !== 201 && response.status !== 200) {
+                const errorText = await response.text();
+                throw new Error(`上传分片失败: ${response.status} - ${errorText}`);
+            }
+
+            uploadedBytes = end;
+            const progress = Math.round((uploadedBytes / fileSize) * 100);
+            updateFileProgress(id, progress);
         }
     };
 
@@ -224,12 +288,28 @@ export default function FileUpload({ parentId, onUploadComplete }: FileUploadPro
                                     <p className="text-sm font-medium text-dark-900 dark:text-dark-100 truncate">
                                         {uploadFile.file.name}
                                     </p>
-                                    <p className="text-xs text-dark-500">
-                                        {formatFileSize(uploadFile.file.size)}
-                                        {uploadFile.error && (
-                                            <span className="text-red-500 ml-2">{uploadFile.error}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-dark-500">
+                                            {formatFileSize(uploadFile.file.size)}
+                                        </span>
+                                        {uploadFile.status === 'uploading' && uploadFile.progress > 0 && (
+                                            <span className="text-xs text-primary-600">
+                                                {uploadFile.progress}%
+                                            </span>
                                         )}
-                                    </p>
+                                        {uploadFile.error && (
+                                            <span className="text-xs text-red-500">{uploadFile.error}</span>
+                                        )}
+                                    </div>
+                                    {/* 进度条 */}
+                                    {uploadFile.status === 'uploading' && (
+                                        <div className="mt-1 h-1 bg-dark-200 dark:bg-dark-600 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full bg-primary-500 transition-all duration-300"
+                                                style={{ width: `${uploadFile.progress}%` }}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* 移除按钮 */}

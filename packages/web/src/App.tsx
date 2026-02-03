@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import SetupPage from './pages/SetupPage';
 import DrivePage from './pages/DrivePage';
 import ShareViewPage from './pages/ShareViewPage';
+import SharesPage from './pages/SharesPage';
 import SettingsPage from './pages/SettingsPage';
 import UsersPage from './pages/UsersPage';
 
@@ -94,7 +95,7 @@ export default function App() {
                     <Route path="drive/:folderId" element={<DrivePage />} />
                     <Route path="favorites" element={<DrivePage type="favorites" />} />
                     <Route path="trash" element={<DrivePage type="trash" />} />
-                    <Route path="shares" element={<DrivePage type="shares" />} />
+                    <Route path="shares" element={<SharesPage />} />
                     <Route path="settings" element={<SettingsPage />} />
 
                     {/* 管理员路由 */}

@@ -10,11 +10,20 @@
 ## ✨ 功能特性
 
 ### 核心功能
-- 📁 文件夹创建、删除、重命名
-- 📄 文件上传、下载、复制、移动、删除
-- 🔍 文件搜索和排序
-- 👁️ 多格式文件预览 (Office/PDF/图片/视频/音频/代码)
-- 🔗 文件分享 (支持密码保护和有效期设置)
+- 📁 **文件管理**: 文件夹创建、删除、重命名、复制、移动
+- 📄 **文件上传**: 支持拖拽上传，大文件自动分片上传（>4MB）
+- ⬇️ **文件下载**: 获取下载链接直接下载
+- 🔍 **实时搜索**: 顶部搜索栏，实时搜索文件和文件夹
+- 👁️ **文件预览**: 图片/视频/音频/Office/PDF 在线预览
+- 🔗 **文件分享**: 生成分享链接，支持密码保护、有效期、下载次数限制
+- 📋 **分享管理**: 查看和管理所有已创建的分享链接
+- ℹ️ **文件属性**: 查看文件详细信息（大小、创建时间、修改时间等）
+
+### 界面功能
+- 🌓 **主题切换**: 深色/浅色主题，跟随系统
+- 📊 **多视图**: 列表视图 / 网格视图 切换
+- 🖱️ **右键菜单**: 文件操作上下文菜单
+- 📱 **响应式设计**: 支持桌面端和移动端
 
 ### 用户权限
 - 👑 **超级管理员**: 完全控制所有文件和用户
@@ -22,14 +31,18 @@
 - 📖 **顾客**: 查看和下载指定文件夹
 - 👤 **访客**: 仅能访问公开分享的内容
 
-### 高级特性
-- 🌓 深色/浅色主题切换
-- 📱 响应式设计，支持移动端
-- 🏷️ 文件标签和收藏
-- 🗑️ 回收站功能
-- 📊 访问日志记录
+### 管理功能
+- 👤 **用户管理**: 添加、禁用、删除用户
+- ⚙️ **设置页面**: OneDrive 连接状态、主题切换
+- 🔐 **OAuth 认证**: Azure AD OAuth 2.0 连接
+
+### 待实现功能
+- ⭐ 收藏功能
+- 🗑️ 回收站
+- 🏷️ 标签系统
 - 🔐 两步验证 (TOTP)
 - 🛡️ IP 白名单
+- 📊 访问日志查看
 
 ## 🏗️ 技术架构
 
@@ -63,22 +76,23 @@ cfdrive/
 │   ├── web/                    # React 前端应用
 │   │   ├── src/
 │   │   │   ├── components/     # UI 组件
+│   │   │   │   ├── files/      # 文件相关组件
+│   │   │   │   └── layout/     # 布局组件
 │   │   │   ├── pages/          # 页面组件
-│   │   │   ├── hooks/          # 自定义 Hooks
-│   │   │   ├── stores/         # Zustand 状态
-│   │   │   └── services/       # API 服务
+│   │   │   ├── stores/         # Zustand 状态管理
+│   │   │   ├── services/       # API 服务
+│   │   │   └── utils/          # 工具函数
 │   │   └── ...
 │   │
 │   └── worker/                 # Cloudflare Workers 后端
 │       ├── src/
 │       │   ├── handlers/       # API 处理器
 │       │   ├── middleware/     # 中间件
-│       │   ├── services/       # 业务服务
-│       │   └── ...
+│       │   ├── services/       # 业务服务 (OneDrive)
+│       │   └── types/          # 类型定义
 │       └── migrations/         # D1 数据库迁移
 │
 ├── doc/                        # 项目文档
-├── .wrangler/                  # Wrangler 本地数据 (git ignored)
 └── README.md
 ```
 
@@ -87,7 +101,7 @@ cfdrive/
 ### 前置条件
 
 - Node.js 18+
-- pnpm 8+
+- npm 9+
 - Cloudflare 账户
 - Microsoft Azure AD 应用 (用于 OneDrive API)
 
@@ -99,17 +113,19 @@ git clone <repository-url>
 cd cfdrive
 
 # 安装依赖
-pnpm install
+npm install
 
 # 配置环境变量
 cp packages/worker/.dev.vars.example packages/worker/.dev.vars
 # 编辑 .dev.vars 填入 Azure AD 配置
 
 # 初始化本地数据库
-pnpm db:migrate
+cd packages/worker
+npx wrangler d1 execute cfdrive-db --file=./migrations/0001_initial_schema.sql --local
+cd ../..
 
 # 启动开发服务器
-pnpm dev
+npm run dev
 ```
 
 ### 环境变量
@@ -120,30 +136,47 @@ pnpm dev
 # Microsoft Azure AD
 AZURE_CLIENT_ID=your-client-id
 AZURE_CLIENT_SECRET=your-client-secret
-AZURE_TENANT_ID=your-tenant-id
+AZURE_TENANT_ID=common
 
 # 应用配置
 APP_URL=http://localhost:5173
-JWT_SECRET=your-jwt-secret
+JWT_SECRET=your-jwt-secret-key
+NODE_ENV=development
 ```
 
-## 📖 文档
+### Azure AD 应用配置
 
-- [实现计划](./doc/implementation_plan.md) - 详细的技术设计和实现计划
-- [数据库设计](./doc/implementation_plan.md#数据库设计-cloudflare-d1) - D1 数据库表结构
-- [API 文档](./doc/api.md) - API 接口说明 (待完善)
+1. 访问 [Azure Portal](https://portal.azure.com)
+2. 搜索 "Microsoft Entra ID" (原 Azure AD)
+3. 创建新的应用注册
+4. 添加重定向 URI: `http://localhost:5173/api/oauth/callback`
+5. 添加 API 权限:
+   - `Files.Read`
+   - `Files.Read.All`
+   - `Files.ReadWrite`
+   - `Files.ReadWrite.All`
+   - `offline_access`
+   - `User.Read`
+6. 创建客户端密钥，复制到 `.dev.vars`
+
+## 📖 开发服务地址
+
+启动开发服务器后：
+- **前端**: http://localhost:5173
+- **后端 API**: http://127.0.0.1:8787
+
+首次访问会跳转到设置页面，创建超级管理员账户。
 
 ## 🛠️ 开发命令
 
 | 命令 | 说明 |
 |------|------|
-| `pnpm dev` | 启动前端和后端开发服务器 |
-| `pnpm dev:web` | 仅启动前端开发服务器 |
-| `pnpm dev:worker` | 仅启动后端开发服务器 |
-| `pnpm build` | 构建生产版本 |
-| `pnpm test` | 运行测试 |
-| `pnpm db:migrate` | 应用数据库迁移 |
-| `pnpm db:reset` | 重置本地数据库 |
+| `npm run dev` | 启动前端和后端开发服务器 |
+| `npm run dev:web` | 仅启动前端开发服务器 |
+| `npm run dev:worker` | 仅启动后端开发服务器 |
+| `npm run build` | 构建生产版本 |
+| `npm run build:web` | 构建前端 |
+| `npm run build:worker` | 构建后端 |
 
 ## 🔧 部署
 
@@ -151,11 +184,13 @@ JWT_SECRET=your-jwt-secret
 
 ```bash
 # 部署 Worker
-pnpm --filter @cfdrive/worker deploy
+cd packages/worker
+npx wrangler deploy
 
 # 部署前端到 Pages
-pnpm --filter @cfdrive/web build
-# 然后在 Cloudflare Dashboard 中配置 Pages
+cd ../web
+npm run build
+# 然后在 Cloudflare Dashboard 中配置 Pages，指向 dist 目录
 ```
 
 ## 📄 许可证
