@@ -219,9 +219,7 @@ export class OneDriveService {
         targetParentId: string,
         newName?: string
     ): Promise<{ monitorUrl: string }> {
-        const parentReference = targetParentId === 'root'
-            ? { path: '/drive/root' }
-            : { id: targetParentId };
+        const parentReference = { id: targetParentId };
 
         const response = await this.graph.rawRequest(`/drive/items/${itemId}/copy`, {
             method: 'POST',
@@ -249,9 +247,7 @@ export class OneDriveService {
         targetParentId: string,
         newName?: string
     ): Promise<DriveItem> {
-        const parentReference = targetParentId === 'root'
-            ? { path: '/drive/root' }
-            : { id: targetParentId };
+        const parentReference = { id: targetParentId };
 
         const body: Record<string, unknown> = { parentReference };
         if (newName) {

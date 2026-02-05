@@ -154,6 +154,25 @@ export const fileService = {
     getTrash: () => api.get('/files/trash'),
     restore: (itemId: string) => api.post(`/files/${itemId}/restore`),
     permanentDelete: (itemId: string) => api.delete(`/files/${itemId}/permanent`),
+
+    // 批量操作
+    batchDelete: (itemIds: string[]) =>
+        api.post<{
+            success: string[];
+            failed: Array<{ id: string; reason: string }>;
+        }>('/files/batch/delete', { itemIds }),
+
+    batchMove: (itemIds: string[], targetParentId: string) =>
+        api.post<{
+            success: string[];
+            failed: Array<{ id: string; reason: string }>;
+        }>('/files/batch/move', { itemIds, targetParentId }),
+
+    batchCopy: (itemIds: string[], targetParentId: string) =>
+        api.post<{
+            success: string[];
+            failed: Array<{ id: string; reason: string }>;
+        }>('/files/batch/copy', { itemIds, targetParentId }),
 };
 
 // 分享服务

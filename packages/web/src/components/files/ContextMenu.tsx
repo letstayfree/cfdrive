@@ -19,6 +19,7 @@ interface ContextMenuProps {
     y: number;
     item: DriveItem | null;
     isFolder?: boolean;
+    selectedCount?: number;
     onClose: () => void;
     onOpen: () => void;
     onDownload: () => void;
@@ -38,6 +39,7 @@ export default function ContextMenu({
     y,
     item,
     isFolder,
+    selectedCount = 0,
     onClose,
     onOpen,
     onDownload,
@@ -98,28 +100,29 @@ export default function ContextMenu({
     const position = adjustedPosition();
 
     const menuItems = [
-        // 打开
-        { icon: Eye, label: '打开', onClick: onOpen, divider: false },
-        // 下载（仅文件）
+        // 打开（多选时隐藏）
+        ...(selectedCount <= 1 ? [{ icon: Eye, label: '打开', onClick: onOpen, divider: false }] : []),
+        // 下载（仅文件，多选时也支持）
         ...(!isFolder ? [{ icon: Download, label: '下载', onClick: onDownload, divider: true }] : []),
         // 新建文件夹（仅在空白处右键或文件夹）
-        ...(onNewFolder ? [{ icon: FolderPlus, label: '新建文件夹', onClick: onNewFolder, divider: false }] : []),
-        // 分隔线后的操作
-        { icon: Edit3, label: '重命名', onClick: onRename, divider: false },
+        ...(onNewFolder && selectedCount <= 1 ? [{ icon: FolderPlus, label: '新建文件夹', onClick: onNewFolder, divider: false }] : []),
+        // 重命名（仅单选时显示）
+        ...(selectedCount <= 1 ? [{ icon: Edit3, label: '重命名', onClick: onRename, divider: false }] : []),
+        // 复制和移动（多选时都支持）
         { icon: Copy, label: '复制', onClick: onCopy, divider: false },
-        { icon: Move, label: '移动', onClick: onMove, divider: true },
-        // 分享
-        { icon: Share2, label: '分享', onClick: onShare, divider: false },
-        // 收藏
-        {
+        { icon: Move, label: '移动', onClick: onMove, divider: selectedCount <= 1 ? true : false },
+        // 分享（仅单选时显示）
+        ...(selectedCount <= 1 ? [{ icon: Share2, label: '分享', onClick: onShare, divider: false }] : []),
+        // 收藏（仅单选时显示）
+        ...(selectedCount <= 1 ? [{
             icon: isFavorite ? StarOff : Star,
             label: isFavorite ? '取消收藏' : '添加收藏',
             onClick: onToggleFavorite,
             divider: true,
-        },
-        // 属性
-        { icon: Info, label: '属性', onClick: onShowInfo, divider: true },
-        // 删除
+        }] : []),
+        // 属性（仅单选时显示）
+        ...(selectedCount <= 1 ? [{ icon: Info, label: '属性', onClick: onShowInfo, divider: true }] : []),
+        // 删除（多选时都支持）
         { icon: Trash2, label: '删除', onClick: onDelete, divider: false, danger: true },
     ];
 
@@ -132,10 +135,10 @@ export default function ContextMenu({
             {item && (
                 <div className="px-3 py-2 border-b border-dark-200 dark:border-dark-700">
                     <p className="text-sm font-medium text-dark-900 dark:text-dark-100 truncate">
-                        {item.name}
+                        {selectedCount > 1 ? `${selectedCount} 个项目` : item.name}
                     </p>
                     <p className="text-xs text-dark-500">
-                        {isFolder ? '文件夹' : '文件'}
+                        {selectedCount > 1 ? '批量操作' : (isFolder ? '文件夹' : '文件')}
                     </p>
                 </div>
             )}

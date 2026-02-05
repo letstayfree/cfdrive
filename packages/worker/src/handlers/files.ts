@@ -204,6 +204,284 @@ files.get('/search', async (c) => {
 });
 
 /**
+ * 批量删除文件/文件夹
+ * POST /api/files/batch/delete
+ */
+files.post('/batch/delete', async (c) => {
+    try {
+        const user = c.get('user') as User;
+        const body = await c.req.json<{ itemIds: string[] }>();
+
+        if (!body.itemIds || body.itemIds.length === 0) {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'INVALID_INPUT', message: '文件 ID 列表为空' },
+                },
+                400
+            );
+        }
+
+        const onedrive = getOneDriveService(c.env);
+        const results = {
+            success: [] as string[],
+            failed: [] as Array<{ id: string; reason: string }>,
+        };
+
+        for (const itemId of body.itemIds) {
+            try {
+                // 权限检查
+                if (user.role !== 'superadmin') {
+                    const permCheck = await checkPathPermission(user, itemId, 'delete', c.env.DB);
+                    if (!permCheck.allowed) {
+                        results.failed.push({ id: itemId, reason: permCheck.reason || '权限不足' });
+                        continue;
+                    }
+                }
+
+                // 先获取项目信息
+                let itemInfo: DriveItem | null = null;
+                try {
+                    itemInfo = await onedrive.getItem(itemId);
+                } catch {
+                    // 忽略错误
+                }
+
+                // 记录到已删除文件表
+                if (itemInfo) {
+                    const deletedId = generateId();
+                    const now = new Date().toISOString();
+                    await c.env.DB.prepare(`
+                        INSERT INTO deleted_items (id, user_id, file_id, file_name, file_path, file_type, file_size, deleted_at, parent_id, metadata)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `).bind(
+                        deletedId,
+                        user.id,
+                        itemId,
+                        itemInfo.name,
+                        itemInfo.parentReference?.path?.replace('/drive/root:', '') || '/',
+                        itemInfo.folder ? 'folder' : 'file',
+                        itemInfo.size || 0,
+                        now,
+                        itemInfo.parentReference?.id || null,
+                        JSON.stringify({
+                            mimeType: itemInfo.file?.mimeType,
+                            webUrl: itemInfo.webUrl,
+                            createdDateTime: itemInfo.createdDateTime,
+                            lastModifiedDateTime: itemInfo.lastModifiedDateTime,
+                        })
+                    ).run();
+                }
+
+                await onedrive.deleteItem(itemId);
+                await logAccess(
+                    c.env.DB,
+                    user.id,
+                    'delete',
+                    itemInfo?.folder ? 'folder' : 'file',
+                    itemId,
+                    itemInfo?.name || null,
+                    c.req.raw
+                );
+
+                results.success.push(itemId);
+            } catch (error) {
+                console.error(`Failed to delete item ${itemId}:`, error);
+                results.failed.push({
+                    id: itemId,
+                    reason: error instanceof Error ? error.message : '删除失败',
+                });
+            }
+        }
+
+        return c.json({
+            success: results.failed.length === 0,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Batch delete error:', error);
+        return c.json(
+            {
+                success: false,
+                error: { code: 'DELETE_ERROR', message: '批量删除失败' },
+            },
+            500
+        );
+    }
+});
+
+/**
+ * 批量移动文件/文件夹
+ * POST /api/files/batch/move
+ */
+files.post('/batch/move', async (c) => {
+    try {
+        const user = c.get('user') as User;
+        const body = await c.req.json<{ itemIds: string[]; targetParentId: string }>();
+
+        if (!body.itemIds || body.itemIds.length === 0) {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'INVALID_INPUT', message: '文件 ID 列表为空' },
+                },
+                400
+            );
+        }
+
+        if (!body.targetParentId) {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'INVALID_INPUT', message: '目标文件夹为必填项' },
+                },
+                400
+            );
+        }
+
+        const onedrive = getOneDriveService(c.env);
+        const results = {
+            success: [] as string[],
+            failed: [] as Array<{ id: string; reason: string }>,
+        };
+
+        for (const itemId of body.itemIds) {
+            try {
+                // 权限检查
+                if (user.role !== 'superadmin') {
+                    const sourceCheck = await checkPathPermission(user, itemId, 'delete', c.env.DB);
+                    if (!sourceCheck.allowed) {
+                        results.failed.push({ id: itemId, reason: '没有源文件的修改权限' });
+                        continue;
+                    }
+
+                    const targetCheck = await checkPathPermission(user, body.targetParentId, 'create', c.env.DB);
+                    if (!targetCheck.allowed) {
+                        results.failed.push({ id: itemId, reason: '没有目标文件夹的写入权限' });
+                        continue;
+                    }
+                }
+
+                const item = await onedrive.moveItem(itemId, body.targetParentId);
+                await logAccess(
+                    c.env.DB,
+                    user.id,
+                    'move',
+                    item.folder ? 'folder' : 'file',
+                    itemId,
+                    item.name,
+                    c.req.raw,
+                    { targetParentId: body.targetParentId }
+                );
+                results.success.push(itemId);
+            } catch (error) {
+                console.error(`Failed to move item ${itemId}:`, error);
+                results.failed.push({
+                    id: itemId,
+                    reason: error instanceof Error ? error.message : '移动失败',
+                });
+            }
+        }
+
+        return c.json({
+            success: results.failed.length === 0,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Batch move error:', error);
+        return c.json(
+            {
+                success: false,
+                error: { code: 'MOVE_ERROR', message: '批量移动失败' },
+            },
+            500
+        );
+    }
+});
+
+/**
+ * 批量复制文件/文件夹
+ * POST /api/files/batch/copy
+ */
+files.post('/batch/copy', async (c) => {
+    try {
+        const user = c.get('user') as User;
+        const body = await c.req.json<{ itemIds: string[]; targetParentId: string }>();
+
+        if (!body.itemIds || body.itemIds.length === 0) {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'INVALID_INPUT', message: '文件 ID 列表为空' },
+                },
+                400
+            );
+        }
+
+        if (!body.targetParentId) {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'INVALID_INPUT', message: '目标文件夹为必填项' },
+                },
+                400
+            );
+        }
+
+        const onedrive = getOneDriveService(c.env);
+        const results = {
+            success: [] as string[],
+            failed: [] as Array<{ id: string; reason: string }>,
+        };
+
+        for (const itemId of body.itemIds) {
+            try {
+                // 权限检查
+                if (user.role !== 'superadmin') {
+                    const sourceCheck = await checkPathPermission(user, itemId, 'read', c.env.DB);
+                    if (!sourceCheck.allowed) {
+                        results.failed.push({ id: itemId, reason: '没有源文件的读取权限' });
+                        continue;
+                    }
+
+                    const targetCheck = await checkPathPermission(user, body.targetParentId, 'create', c.env.DB);
+                    if (!targetCheck.allowed) {
+                        results.failed.push({ id: itemId, reason: '没有目标文件夹的写入权限' });
+                        continue;
+                    }
+                }
+
+                await onedrive.copyItem(itemId, body.targetParentId);
+                await logAccess(c.env.DB, user.id, 'copy', 'file', itemId, null, c.req.raw, {
+                    targetParentId: body.targetParentId,
+                });
+                results.success.push(itemId);
+            } catch (error) {
+                console.error(`Failed to copy item ${itemId}:`, error);
+                results.failed.push({
+                    id: itemId,
+                    reason: error instanceof Error ? error.message : '复制失败',
+                });
+            }
+        }
+
+        return c.json({
+            success: results.failed.length === 0,
+            data: results,
+        });
+    } catch (error) {
+        console.error('Batch copy error:', error);
+        return c.json(
+            {
+                success: false,
+                error: { code: 'COPY_ERROR', message: '批量复制失败' },
+            },
+            500
+        );
+    }
+});
+
+/**
  * 获取文件/文件夹详情
  * GET /api/files/:id
  */
@@ -489,19 +767,23 @@ files.post('/:id/copy', async (c) => {
                 );
             }
 
-            const targetCheck = await checkPathPermission(user, body.targetParentId, 'create', c.env.DB);
-            if (!targetCheck.allowed) {
-                return c.json(
-                    {
-                        success: false,
-                        error: { code: 'FORBIDDEN', message: '没有目标文件夹的写入权限' },
-                    },
-                    403
-                );
+            // 只有非root时才检查目标权限
+            if (body.targetParentId !== 'root') {
+                const targetCheck = await checkPathPermission(user, body.targetParentId, 'create', c.env.DB);
+                if (!targetCheck.allowed) {
+                    return c.json(
+                        {
+                            success: false,
+                            error: { code: 'FORBIDDEN', message: '没有目标文件夹的写入权限' },
+                        },
+                        403
+                    );
+                }
             }
         }
 
         const onedrive = getOneDriveService(c.env);
+        console.log(`[copy] Copying item ${itemId} to ${body.targetParentId}`);
         const result = await onedrive.copyItem(itemId, body.targetParentId, body.newName);
 
         // 记录访问日志
@@ -565,19 +847,23 @@ files.post('/:id/move', async (c) => {
                 );
             }
 
-            const targetCheck = await checkPathPermission(user, body.targetParentId, 'create', c.env.DB);
-            if (!targetCheck.allowed) {
-                return c.json(
-                    {
-                        success: false,
-                        error: { code: 'FORBIDDEN', message: '没有目标文件夹的写入权限' },
-                    },
-                    403
-                );
+            // 只有非root时才检查目标权限
+            if (body.targetParentId !== 'root') {
+                const targetCheck = await checkPathPermission(user, body.targetParentId, 'create', c.env.DB);
+                if (!targetCheck.allowed) {
+                    return c.json(
+                        {
+                            success: false,
+                            error: { code: 'FORBIDDEN', message: '没有目标文件夹的写入权限' },
+                        },
+                        403
+                    );
+                }
             }
         }
 
         const onedrive = getOneDriveService(c.env);
+        console.log(`[move] Moving item ${itemId} to ${body.targetParentId}`);
         const item = await onedrive.moveItem(itemId, body.targetParentId, body.newName);
 
         // 记录访问日志

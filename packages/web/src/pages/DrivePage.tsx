@@ -16,6 +16,7 @@ import MoveCopyModal from '../components/files/MoveCopyModal';
 import ShareModal from '../components/files/ShareModal';
 import FileInfoModal from '../components/files/FileInfoModal';
 import SortDropdown from '../components/files/SortDropdown';
+import BatchActionsBar from '../components/files/BatchActionsBar';
 import Breadcrumb from '../components/layout/Breadcrumb';
 import { Loader2, Grid, List, RefreshCw, FolderPlus, AlertTriangle, Link2 } from 'lucide-react';
 
@@ -32,11 +33,14 @@ export default function DrivePage({ type }: DrivePageProps) {
         sortField,
         sortOrder,
         items,
+        selectedIds,
         setCurrentFolder,
         setItems,
         setLoading,
         setViewMode,
         clearSelection,
+        toggleSelectItem,
+        selectItem,
     } = useFilesStore();
 
     // 右键菜单状态
@@ -91,6 +95,24 @@ export default function DrivePage({ type }: DrivePageProps) {
         queryFn: async () => {
             const orderby = `${sortField} ${sortOrder}`;
             const response = await fileService.list(folderId, { orderby });
+
+            // 如果不是root，同时获取当前文件夹的信息以获取真实名字
+            if (folderId !== 'root' && response.success) {
+                try {
+                    const itemResponse = await fileService.getItem(folderId);
+                    if (itemResponse.success && itemResponse.data) {
+                        const folderItem = itemResponse.data as DriveItem;
+                        // 更新路径，使用真实的文件夹名字
+                        setCurrentFolder(folderId, [
+                            { id: 'root', name: '我的网盘' },
+                            { id: folderId, name: folderItem.name },
+                        ]);
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch current folder info:', error);
+                }
+            }
+
             return response;
         },
         enabled: !type && oauthStatus?.connected === true,
@@ -119,11 +141,16 @@ export default function DrivePage({ type }: DrivePageProps) {
         setLoading(isLoading);
     }, [isLoading, setLoading]);
 
-    // 右键菜单处理
+    // 右键菜单处理 - 如果点击的文件已选中，则对所有选中的文件操作
     const handleContextMenu = useCallback((e: React.MouseEvent, item: DriveItem) => {
         e.preventDefault();
+        // 如果点击的文件未被选中，则只选中这个文件；如果已选中，保持所有选中状态
+        if (!selectedIds.has(item.id)) {
+            clearSelection();
+            selectItem(item.id);
+        }
         setContextMenu({ x: e.clientX, y: e.clientY, item });
-    }, []);
+    }, [selectedIds, clearSelection, selectItem]);
 
     const handleBackgroundContextMenu = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
@@ -172,14 +199,32 @@ export default function DrivePage({ type }: DrivePageProps) {
 
         setIsOperating(true);
         try {
+            let successCount = 0;
+            let failCount = 0;
+
             for (const item of deleteModal.items) {
-                await fileService.delete(item.id);
+                try {
+                    await fileService.delete(item.id);
+                    successCount++;
+                } catch (error) {
+                    failCount++;
+                    console.error(`Failed to delete ${item.name}:`, error);
+                }
             }
+
+            if (successCount > 0) {
+                toast.success(`成功删除 ${successCount} 个项目`);
+            }
+            if (failCount > 0) {
+                toast.error(`删除失败：${failCount} 个项目`);
+            }
+
             refetch();
             setDeleteModal({ isOpen: false, items: [] });
             clearSelection();
         } catch (error) {
             console.error('Delete error:', error);
+            toast.error('删除操作失败');
         } finally {
             setIsOperating(false);
         }
@@ -201,22 +246,66 @@ export default function DrivePage({ type }: DrivePageProps) {
     }, [folderId, refetch]);
 
     const handleMoveCopy = useCallback(async (targetFolderId: string) => {
-        if (moveCopyModal.items.length === 0) return;
+        if (moveCopyModal.items.length === 0) {
+            console.warn('No items to move/copy');
+            toast.error('没有要操作的文件');
+            return;
+        }
+
+        console.log(`[${moveCopyModal.mode}] Starting operation on ${moveCopyModal.items.length} items to folder ${targetFolderId}`);
 
         setIsOperating(true);
         try {
+            let successCount = 0;
+            let failCount = 0;
+            const operation = moveCopyModal.mode === 'move' ? '移动' : '复制';
+            const failedItems: Array<{ name: string; error: string }> = [];
+
             for (const item of moveCopyModal.items) {
-                if (moveCopyModal.mode === 'move') {
-                    await fileService.move(item.id, targetFolderId);
-                } else {
-                    await fileService.copy(item.id, targetFolderId);
+                try {
+                    console.log(`[${moveCopyModal.mode}] Processing: ${item.name} (${item.id})`);
+
+                    if (moveCopyModal.mode === 'move') {
+                        const response = await fileService.move(item.id, targetFolderId);
+                        if (!response.success) {
+                            throw new Error(response.error?.message || '操作失败');
+                        }
+                    } else {
+                        const response = await fileService.copy(item.id, targetFolderId);
+                        if (!response.success) {
+                            throw new Error(response.error?.message || '操作失败');
+                        }
+                    }
+                    successCount++;
+                    console.log(`[${moveCopyModal.mode}] Success: ${item.name}`);
+                } catch (error) {
+                    failCount++;
+                    const errorMsg = error instanceof Error ? error.message : String(error);
+                    failedItems.push({ name: item.name, error: errorMsg });
+                    console.error(`[${moveCopyModal.mode}] Failed to process ${item.name}:`, error);
                 }
             }
+
+            console.log(`[${moveCopyModal.mode}] Operation complete. Success: ${successCount}, Failed: ${failCount}`);
+
+            // 显示结果提示
+            if (successCount > 0) {
+                toast.success(`成功${operation}${successCount} 个项目`);
+            }
+            if (failCount > 0) {
+                if (failedItems.length === 1) {
+                    toast.error(`${operation}失败: ${failedItems[0].name} - ${failedItems[0].error}`);
+                } else {
+                    toast.error(`${operation}失败：${failCount} 个项目`);
+                }
+            }
+
             refetch();
             setMoveCopyModal({ isOpen: false, mode: 'move', items: [] });
             clearSelection();
         } catch (error) {
             console.error('Move/Copy error:', error);
+            toast.error('操作失败，请重试');
         } finally {
             setIsOperating(false);
         }
@@ -399,26 +488,49 @@ export default function DrivePage({ type }: DrivePageProps) {
                     y={contextMenu.y}
                     item={contextMenu.item}
                     isFolder={!!contextMenu.item?.folder}
+                    selectedCount={selectedIds.size}
                     onClose={() => setContextMenu(null)}
                     onOpen={() => contextMenu.item && handleOpen(contextMenu.item)}
-                    onDownload={() => contextMenu.item && handleDownload(contextMenu.item)}
+                    onDownload={() => {
+                        if (selectedIds.size > 0) {
+                            const itemsToDownload = items.filter(item => selectedIds.has(item.id) && !item.folder);
+                            itemsToDownload.forEach(item => handleDownload(item));
+                        } else if (contextMenu.item) {
+                            handleDownload(contextMenu.item);
+                        }
+                    }}
                     onRename={() => {
                         if (contextMenu.item) {
                             setRenameModal({ isOpen: true, item: contextMenu.item });
                         }
                     }}
                     onCopy={() => {
-                        if (contextMenu.item) {
+                        console.log('[ContextMenu] onCopy called, selectedIds:', selectedIds);
+                        if (selectedIds.size > 0) {
+                            const itemsToCopy = items.filter(item => selectedIds.has(item.id));
+                            console.log('[ContextMenu] Copying items:', itemsToCopy.map(i => i.name));
+                            setMoveCopyModal({ isOpen: true, mode: 'copy', items: itemsToCopy });
+                        } else if (contextMenu.item) {
+                            console.log('[ContextMenu] Copying single item:', contextMenu.item.name);
                             setMoveCopyModal({ isOpen: true, mode: 'copy', items: [contextMenu.item] });
                         }
                     }}
                     onMove={() => {
-                        if (contextMenu.item) {
+                        console.log('[ContextMenu] onMove called, selectedIds:', selectedIds);
+                        if (selectedIds.size > 0) {
+                            const itemsToMove = items.filter(item => selectedIds.has(item.id));
+                            console.log('[ContextMenu] Moving items:', itemsToMove.map(i => i.name));
+                            setMoveCopyModal({ isOpen: true, mode: 'move', items: itemsToMove });
+                        } else if (contextMenu.item) {
+                            console.log('[ContextMenu] Moving single item:', contextMenu.item.name);
                             setMoveCopyModal({ isOpen: true, mode: 'move', items: [contextMenu.item] });
                         }
                     }}
                     onDelete={() => {
-                        if (contextMenu.item) {
+                        if (selectedIds.size > 0) {
+                            const itemsToDelete = items.filter(item => selectedIds.has(item.id));
+                            setDeleteModal({ isOpen: true, items: itemsToDelete });
+                        } else if (contextMenu.item) {
                             setDeleteModal({ isOpen: true, items: [contextMenu.item] });
                         }
                     }}
@@ -502,6 +614,14 @@ export default function DrivePage({ type }: DrivePageProps) {
                     onClose={() => setInfoModal({ isOpen: false, item: null })}
                 />
             )}
+
+            {/* 批量操作栏 */}
+            <BatchActionsBar
+                onDelete={(items) => setDeleteModal({ isOpen: true, items })}
+                onMove={(items) => setMoveCopyModal({ isOpen: true, mode: 'move', items })}
+                onCopy={(items) => setMoveCopyModal({ isOpen: true, mode: 'copy', items })}
+                onDownload={handleDownload}
+            />
         </div>
     );
 }

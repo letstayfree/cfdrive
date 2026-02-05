@@ -29,6 +29,7 @@ export default function MoveCopyModal({
     const [folders, setFolders] = useState<FolderItem[]>([]);
     const [currentFolderId, setCurrentFolderId] = useState('root');
     const [selectedFolderId, setSelectedFolderId] = useState('root');
+    const [selectedFolderName, setSelectedFolderName] = useState('我的网盘');
     const [pathStack, setPathStack] = useState<FolderItem[]>([{ id: 'root', name: '我的网盘' }]);
     const [isFetching, setIsFetching] = useState(false);
 
@@ -39,6 +40,7 @@ export default function MoveCopyModal({
         const fetchFolders = async () => {
             setIsFetching(true);
             try {
+                console.log('[MoveCopyModal] Fetching folders from:', currentFolderId);
                 const response = await fileService.list(currentFolderId);
                 if (response.success && response.data) {
                     const data = response.data as { items: DriveItem[] };
@@ -50,6 +52,7 @@ export default function MoveCopyModal({
                             name: item.name,
                             parentId: currentFolderId,
                         }));
+                    console.log('[MoveCopyModal] Found folders:', folderItems.map(f => f.name));
                     setFolders(folderItems);
                 }
             } catch (error) {
@@ -66,8 +69,9 @@ export default function MoveCopyModal({
     useEffect(() => {
         if (isOpen) {
             setCurrentFolderId('root');
-            setSelectedFolderId('root');
+            setSelectedFolderId('root');  // 默认选中 root
             setPathStack([{ id: 'root', name: '我的网盘' }]);
+            console.log('[MoveCopyModal] Modal opened, root folder selected by default');
         }
     }, [isOpen]);
 
@@ -147,11 +151,14 @@ export default function MoveCopyModal({
                                 <ChevronRight className="w-4 h-4 text-dark-400 mx-1" />
                             )}
                             <button
-                                onClick={() => handlePathClick(index)}
-                                className={`px-2 py-1 rounded text-sm ${index === pathStack.length - 1
-                                        ? 'font-medium text-primary-600'
-                                        : 'text-dark-600 hover:text-dark-900 dark:text-dark-400 dark:hover:text-dark-200'
-                                    }`}
+                                onClick={() => {
+                                    handlePathClick(index);
+                                }}
+                                className={`px-2 py-1 rounded text-sm transition-colors ${
+                                    index === pathStack.length - 1
+                                        ? 'font-medium text-dark-900 dark:text-dark-100 hover:bg-dark-100 dark:hover:bg-dark-700'
+                                        : 'text-dark-600 hover:text-dark-900 dark:text-dark-400 dark:hover:text-dark-200 hover:bg-dark-100 dark:hover:bg-dark-700'
+                                }`}
                             >
                                 {folder.name}
                             </button>
@@ -165,30 +172,70 @@ export default function MoveCopyModal({
                         <div className="flex items-center justify-center py-8">
                             <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
                         </div>
-                    ) : folders.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-8 text-dark-500">
-                            <FolderOpen className="w-12 h-12 mb-2 opacity-50" />
-                            <p>此文件夹为空</p>
-                        </div>
                     ) : (
                         <div className="divide-y divide-dark-100 dark:divide-dark-700">
-                            {folders.map(folder => (
-                                <div
-                                    key={folder.id}
-                                    className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${selectedFolderId === folder.id
-                                            ? 'bg-primary-50 dark:bg-primary-900/20'
-                                            : 'hover:bg-dark-50 dark:hover:bg-dark-700/50'
-                                        }`}
-                                    onClick={() => handleFolderClick(folder)}
-                                    onDoubleClick={() => handleFolderDoubleClick(folder)}
-                                >
-                                    <Folder className="w-5 h-5 text-yellow-500 flex-shrink-0" />
-                                    <span className="text-dark-900 dark:text-dark-100 truncate">
-                                        {folder.name}
-                                    </span>
-                                    <ChevronRight className="w-4 h-4 text-dark-400 ml-auto flex-shrink-0" />
+                            {/* 根目录选项 - 总是显示 */}
+                            <div
+                                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                                    selectedFolderId === 'root'
+                                        ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-primary-600'
+                                        : 'hover:bg-dark-50 dark:hover:bg-dark-700/50'
+                                }`}
+                                onClick={() => {
+                                    setSelectedFolderId('root');
+                                    setSelectedFolderName('我的网盘');
+                                    console.log('[MoveCopyModal] Root folder selected, id: root, name: 我的网盘');
+                                }}
+                            >
+                                <Folder className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+                                <span className="text-dark-900 dark:text-dark-100 truncate flex-1 font-medium">
+                                    我的网盘 (根目录)
+                                </span>
+                                {selectedFolderId === 'root' && (
+                                    <div className="w-2 h-2 bg-primary-600 rounded-full" />
+                                )}
+                            </div>
+
+                            {/* 当前文件夹的子文件夹列表 */}
+                            {folders.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-8 text-dark-500">
+                                    <FolderOpen className="w-12 h-12 mb-2 opacity-50" />
+                                    <p>此文件夹为空</p>
                                 </div>
-                            ))}
+                            ) : (
+                                folders.map(folder => (
+                                    <div
+                                        key={folder.id}
+                                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                                            selectedFolderId === folder.id
+                                                ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-primary-600'
+                                                : 'hover:bg-dark-50 dark:hover:bg-dark-700/50'
+                                        }`}
+                                        onClick={() => {
+                                            handleFolderClick(folder);
+                                            setSelectedFolderName(folder.name);
+                                            console.log('[MoveCopyModal] Folder selected:', folder.name, 'id:', folder.id);
+                                        }}
+                                        onDoubleClick={() => {
+                                            console.log(
+                                                '[MoveCopyModal] Folder double-clicked, entering:',
+                                                folder.name,
+                                                folder.id
+                                            );
+                                            handleFolderDoubleClick(folder);
+                                        }}
+                                    >
+                                        <Folder className="w-5 h-5 text-yellow-500 flex-shrink-0" />
+                                        <span className="text-dark-900 dark:text-dark-100 truncate flex-1">
+                                            {folder.name}
+                                        </span>
+                                        {selectedFolderId === folder.id && (
+                                            <div className="w-2 h-2 bg-primary-600 rounded-full" />
+                                        )}
+                                        <ChevronRight className="w-4 h-4 text-dark-400 flex-shrink-0" />
+                                    </div>
+                                ))
+                            )}
                         </div>
                     )}
                 </div>
@@ -196,8 +243,8 @@ export default function MoveCopyModal({
                 {/* 底部操作 */}
                 <div className="flex items-center justify-between p-4 border-t border-dark-200 dark:border-dark-700">
                     <div className="text-sm text-dark-500">
-                        已选择: <span className="font-medium text-dark-700 dark:text-dark-300">
-                            {pathStack[pathStack.length - 1].name}
+                        目标文件夹: <span className="font-medium text-dark-700 dark:text-dark-300">
+                            {selectedFolderName || '未选择'}
                         </span>
                     </div>
                     <div className="flex gap-2">
@@ -205,7 +252,10 @@ export default function MoveCopyModal({
                             取消
                         </button>
                         <button
-                            onClick={() => onConfirm(selectedFolderId)}
+                            onClick={() => {
+                                console.log(`[MoveCopyModal] Confirming ${mode}: selectedFolderId=${selectedFolderId}, selectedFolderName=${selectedFolderName}`);
+                                onConfirm(selectedFolderId);
+                            }}
                             className="btn btn-primary"
                             disabled={isLoading}
                         >
