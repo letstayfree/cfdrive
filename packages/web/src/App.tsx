@@ -13,6 +13,7 @@ import FavoritesPage from './pages/FavoritesPage';
 import TrashPage from './pages/TrashPage';
 import SettingsPage from './pages/SettingsPage';
 import UsersPage from './pages/UsersPage';
+import TagsPage from './pages/TagsPage';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
@@ -97,6 +98,7 @@ export default function App() {
                     <Route path="drive/:folderId" element={<DrivePage />} />
                     <Route path="favorites" element={<FavoritesPage />} />
                     <Route path="trash" element={<TrashPage />} />
+                    <Route path="tags" element={<TagsPage />} />
                     <Route path="shares" element={<SharesPage />} />
                     <Route path="settings" element={<SettingsPage />} />
 

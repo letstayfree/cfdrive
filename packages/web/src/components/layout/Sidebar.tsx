@@ -8,12 +8,14 @@ import {
     Settings,
     Users,
     Cloud,
+    Tag,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 const navItems = [
     { path: '/drive', icon: HardDrive, label: '我的网盘' },
     { path: '/favorites', icon: Star, label: '收藏' },
+    { path: '/tags', icon: Tag, label: '标签' },
     { path: '/shares', icon: Share2, label: '我的分享' },
     { path: '/trash', icon: Trash2, label: '回收站' },
 ];

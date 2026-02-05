@@ -23,10 +23,12 @@ export default function LoginPage() {
                     navigate('/setup');
                     return;
                 }
-            } catch {
-                // 忽略错误
+            } catch (error) {
+                console.error('Check init error:', error);
+                // 出错时也显示登录页面
+            } finally {
+                setCheckingInit(false);
             }
-            setCheckingInit(false);
         }
         checkInit();
     }, [navigate]);

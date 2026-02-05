@@ -283,6 +283,29 @@ export const oauthService = {
     disconnect: () => api.post('/oauth/disconnect'),
 };
 
+// 标签服务
+export const tagService = {
+    getAll: () => api.get<{ tags: Array<{ id: string; name: string; color: string; file_count: number }> }>('/tags'),
+
+    create: (name: string, color?: string) => api.post('/tags', { name, color }),
+
+    update: (id: string, name?: string, color?: string) => api.put(`/tags/${id}`, { name, color }),
+
+    delete: (id: string) => api.delete(`/tags/${id}`),
+
+    getFileTags: (fileId: string) =>
+        api.get<{ tags: Array<{ id: string; name: string; color: string }> }>(`/tags/files/${fileId}`),
+
+    addFileTags: (fileId: string, tagIds: string[]) =>
+        api.post(`/tags/files/${fileId}`, { tagIds }),
+
+    removeFileTag: (fileId: string, tagId: string) =>
+        api.delete(`/tags/files/${fileId}/tags/${tagId}`),
+
+    getTaggedFiles: (tagId: string) =>
+        api.get<{ tag: { id: string; name: string }; fileIds: string[] }>(`/tags/${tagId}/files`),
+};
+
 // 默认导出常用方法
 export default {
     ...api,
