@@ -6,6 +6,7 @@ const sortOptions: { field: SortField; label: string }[] = [
     { field: 'name', label: '名称' },
     { field: 'lastModifiedDateTime', label: '修改日期' },
     { field: 'size', label: '大小' },
+    { field: 'type', label: '类型' },
 ];
 
 export default function SortDropdown() {
@@ -29,8 +30,8 @@ export default function SortDropdown() {
             // 同字段切换排序方向
             setSort(field, sortOrder === 'asc' ? 'desc' : 'asc');
         } else {
-            // 不同字段使用默认方向
-            setSort(field, field === 'name' ? 'asc' : 'desc');
+            // 不同字段使用默认方向 (type 默认降序，其他默认升序)
+            setSort(field, field === 'type' ? 'desc' : 'asc');
         }
         setIsOpen(false);
     };

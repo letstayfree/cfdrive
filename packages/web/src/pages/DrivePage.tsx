@@ -93,8 +93,9 @@ export default function DrivePage({ type }: DrivePageProps) {
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ['files', folderId, sortField, sortOrder],
         queryFn: async () => {
-            const orderby = `${sortField} ${sortOrder}`;
-            const response = await fileService.list(folderId, { orderby });
+            // 只有当不是 'type' 排序时，才发送排序参数给后端
+            const orderby = sortField !== 'type' ? `${sortField} ${sortOrder}` : undefined;
+            const response = await fileService.list(folderId, orderby ? { orderby } : {});
 
             // 如果不是root，同时获取当前文件夹的信息以获取真实名字
             if (folderId !== 'root' && response.success) {
@@ -131,10 +132,29 @@ export default function DrivePage({ type }: DrivePageProps) {
     // 更新文件列表
     useEffect(() => {
         if (data?.success && data.data) {
-            const items = (data.data as { items: DriveItem[] }).items || [];
+            let items = (data.data as { items: DriveItem[] }).items || [];
+
+            // 如果是按类型排序，在客户端进行排序
+            if (sortField === 'type') {
+                items = items.slice().sort((a, b) => {
+                    // 文件夹优先于文件
+                    const aIsFolder = !!a.folder;
+                    const bIsFolder = !!b.folder;
+
+                    if (aIsFolder !== bIsFolder) {
+                        return sortOrder === 'desc' ? (aIsFolder ? -1 : 1) : (aIsFolder ? 1 : -1);
+                    }
+
+                    // 同类型按名称排序
+                    return sortOrder === 'asc'
+                        ? a.name.localeCompare(b.name)
+                        : b.name.localeCompare(a.name);
+                });
+            }
+
             setItems(items);
         }
-    }, [data, setItems]);
+    }, [data, setItems, sortField, sortOrder]);
 
     // 更新加载状态
     useEffect(() => {

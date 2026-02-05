@@ -577,9 +577,76 @@ OneDrive 操作封装（调用 Microsoft Graph API）
 
 ### 阶段五：高级功能 (预计 3-4 天)
 
-- 文件搜索、排序、多选
-- 回收站、收藏、标签
-- 访问日志、IP 白名单
+#### 5.1 文件多选操作
+
+##### [MODIFY] packages/web/src/stores/files.ts
+添加多选状态管理，支持：
+- 单项选择/取消选择
+- 全选/取消全选
+- 清空选中项
+
+##### [NEW] packages/web/src/components/files/BatchActionsBar.tsx
+创建批量操作浮动工具栏，实现：
+- 显示选中文件数量
+- 批量移动、复制、删除按钮
+- 多选文件时显示
+
+##### [MODIFY] packages/web/src/components/files/ContextMenu.tsx
+扩展右键菜单以支持多选：
+- 显示选中文件数量
+- 多选时隐藏单选操作（重命名、分享、属性等）
+- 多选时保留可用操作（复制、移动、删除）
+
+##### [MODIFY] packages/web/src/pages/DrivePage.tsx
+集成多选功能：
+- 处理 Ctrl/Cmd + Click 多选
+- 连接批量操作 API 调用
+- 集成 BatchActionsBar 组件
+
+##### [MODIFY] packages/worker/src/handlers/files.ts
+实现批量操作 API 端点：
+- `POST /api/files/batch/delete` - 批量删除
+- `POST /api/files/batch/move` - 批量移动
+- `POST /api/files/batch/copy` - 批量复制
+- 支持部分失败处理，返回成功/失败列表
+
+##### [MODIFY] packages/web/src/services/api.ts
+添加批量操作 API 客户端方法：
+- batchDelete(itemIds)
+- batchMove(itemIds, targetParentId)
+- batchCopy(itemIds, targetParentId)
+
+---
+
+#### 5.2 文件排序功能
+
+##### [MODIFY] packages/web/src/stores/files.ts
+扩展排序字段支持，支持：
+- 按名称排序
+- 按大小排序
+- 按修改时间排序
+- 按文件类型排序（文件/文件夹）
+- 升序/降序切换
+
+##### [NEW] packages/web/src/components/files/SortDropdown.tsx
+创建排序下拉菜单组件，实现：
+- 排序字段选择：名称、修改日期、大小、类型
+- 升序/降序切换
+- 点击已选字段切换排序方向
+
+##### [MODIFY] packages/web/src/pages/DrivePage.tsx
+集成排序功能：
+- 支持按名称、大小、修改时间排序（后端 API 支持）
+- 支持按类型排序（客户端排序，文件夹优先）
+- 排序参数包含在查询缓存键中
+- 排序状态与 URL 同步
+
+---
+
+#### 5.3 文件搜索、标签、收藏等其他高级功能
+
+- 文件搜索、标签系统（已实现）
+- 回收站、收藏、访问日志
 - 缩略图生成、缓存优化
 
 ---

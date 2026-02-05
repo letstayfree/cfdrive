@@ -26,7 +26,7 @@ export interface DriveItem {
 }
 
 export type ViewMode = 'list' | 'grid' | 'details';
-export type SortField = 'name' | 'size' | 'lastModifiedDateTime';
+export type SortField = 'name' | 'size' | 'lastModifiedDateTime' | 'type';
 export type SortOrder = 'asc' | 'desc';
 
 interface FilesState {

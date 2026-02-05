@@ -42,7 +42,7 @@ CFDrive 是一个基于 Cloudflare 生态系统的企业级网盘应用，使用
 | **主布局** | 侧边栏 + 顶部导航 | ✅ |
 | **搜索功能** | 实时搜索文件 + 结果导航 | ✅ |
 | **文件浏览器** | 列表视图 + 网格视图 | ✅ |
-| **右键菜单** | 文件操作上下文菜单 | ✅ |
+| **右键菜单** | 文件操作上下文菜单 + 多选支持 | ✅ |
 | **文件上传** | 拖拽上传 + 进度显示 | ✅ |
 | **文件预览** | 图片/视频/音频/Office/PDF预览 | ✅ |
 | **重命名弹窗** | 文件/文件夹重命名 | ✅ |
@@ -56,6 +56,8 @@ CFDrive 是一个基于 Cloudflare 生态系统的企业级网盘应用，使用
 | **设置页面** | OneDrive 连接 + 主题切换 | ✅ |
 | **用户管理** | 用户列表 + 添加/删除用户 | ✅ |
 | **深色模式** | 主题切换 | ✅ |
+| **多选操作** | 批量文件选择 + 批量删除/移动/复制 | ✅ |
+| **排序功能** | 按名称/时间/大小/类型排序 | ✅ |
 
 ### 前端组件
 
@@ -72,6 +74,8 @@ CFDrive 是一个基于 Cloudflare 生态系统的企业级网盘应用，使用
 | MoveCopyModal | `components/files/MoveCopyModal.tsx` | 移动/复制对话框 |
 | ShareModal | `components/files/ShareModal.tsx` | 分享弹窗 |
 | FileInfoModal | `components/files/FileInfoModal.tsx` | 文件属性弹窗 |
+| SortDropdown | `components/files/SortDropdown.tsx` | 排序下拉菜单 |
+| BatchActionsBar | `components/files/BatchActionsBar.tsx` | 批量操作工具栏 |
 | SearchBar | `components/layout/SearchBar.tsx` | 搜索栏 |
 | Header | `components/layout/Header.tsx` | 顶部导航 |
 | Sidebar | `components/layout/Sidebar.tsx` | 侧边栏 |
@@ -152,11 +156,7 @@ npm run dev
 
 | 功能 | 优先级 | 说明 |
 |-----|-------|-----|
-| 收藏功能 | 中 | 添加/取消收藏、收藏列表 |
-| 回收站 | 中 | 已删除文件恢复 |
-| 标签系统 | 低 | 文件标签分类 |
 | 两步验证 | 低 | TOTP 认证 |
-| 批量操作 | 低 | 多选文件操作 |
 | 通知系统 | 低 | 操作提醒 |
 | 文件评论 | 低 | 协作评论功能 |
 
@@ -194,4 +194,4 @@ cfdrive/
 
 ---
 
-*最后更新: 2026-02-02*
+*最后更新: 2026-02-05*
