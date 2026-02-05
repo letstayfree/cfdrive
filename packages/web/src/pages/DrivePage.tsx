@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFilesStore, type DriveItem } from '../stores/files';
-import { fileService, oauthService } from '../services/api';
+import { fileService, oauthService, favoriteService } from '../services/api';
+import toast from 'react-hot-toast';
 import FileList from '../components/files/FileList';
 import FileGrid from '../components/files/FileGrid';
 import FileUpload from '../components/files/FileUpload';
@@ -71,6 +72,8 @@ export default function DrivePage({ type }: DrivePageProps) {
 
     // 操作状态
     const [isOperating, setIsOperating] = useState(false);
+    const [favoriteStatus, setFavoriteStatus] = useState<Record<string, boolean>>({});
+    const queryClient = useQueryClient();
 
     // OneDrive 连接状态
     const { data: oauthStatus } = useQuery({
@@ -218,21 +221,48 @@ export default function DrivePage({ type }: DrivePageProps) {
         }
     }, [moveCopyModal, refetch, clearSelection]);
 
+    // 收藏/取消收藏
+    const handleToggleFavorite = useCallback(async (item: DriveItem) => {
+        const isFavorite = favoriteStatus[item.id];
+        try {
+            if (isFavorite) {
+                await favoriteService.remove(item.id);
+                setFavoriteStatus(prev => ({ ...prev, [item.id]: false }));
+                toast.success('已取消收藏');
+            } else {
+                await favoriteService.add({
+                    file_id: item.id,
+                    file_name: item.name,
+                    file_path: item.parentReference?.path?.replace('/drive/root:', '') || '/',
+                    file_type: item.folder ? 'folder' : 'file',
+                });
+                setFavoriteStatus(prev => ({ ...prev, [item.id]: true }));
+                toast.success('已添加到收藏');
+            }
+            queryClient.invalidateQueries({ queryKey: ['favorites'] });
+        } catch {
+            toast.error(isFavorite ? '取消收藏失败' : '添加收藏失败');
+        }
+    }, [favoriteStatus, queryClient]);
+
+    // 批量获取收藏状态
+    useEffect(() => {
+        if (items.length > 0) {
+            const fileIds = items.map(item => item.id);
+            favoriteService.checkBatch(fileIds).then(response => {
+                if (response.success && response.data) {
+                    setFavoriteStatus(response.data as Record<string, boolean>);
+                }
+            }).catch(() => { });
+        }
+    }, [items]);
+
     const handleConnectOneDrive = () => {
         window.location.href = oauthService.getAuthorizeUrl();
     };
 
     // 获取可预览的文件列表（用于导航）
     const previewableItems = items.filter(item => !item.folder);
-
-    // 特殊类型页面
-    if (type === 'favorites') {
-        return (
-            <div className="text-center py-20">
-                <p className="text-dark-500 dark:text-dark-400">收藏功能即将推出</p>
-            </div>
-        );
-    }
 
     if (type === 'trash') {
         return (
@@ -323,8 +353,8 @@ export default function DrivePage({ type }: DrivePageProps) {
                         <button
                             onClick={() => setViewMode('list')}
                             className={`p-2 transition-colors ${viewMode === 'list'
-                                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
-                                    : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
+                                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
+                                : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
                                 }`}
                             title="列表视图"
                         >
@@ -333,8 +363,8 @@ export default function DrivePage({ type }: DrivePageProps) {
                         <button
                             onClick={() => setViewMode('grid')}
                             className={`p-2 transition-colors ${viewMode === 'grid'
-                                    ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
-                                    : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
+                                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
+                                : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
                                 }`}
                             title="网格视图"
                         >
@@ -393,7 +423,8 @@ export default function DrivePage({ type }: DrivePageProps) {
                             setShareModal({ isOpen: true, item: contextMenu.item });
                         }
                     }}
-                    onToggleFavorite={() => console.log('Toggle favorite')}
+                    onToggleFavorite={() => contextMenu.item && handleToggleFavorite(contextMenu.item)}
+                    isFavorite={contextMenu.item ? favoriteStatus[contextMenu.item.id] : false}
                     onShowInfo={() => {
                         if (contextMenu.item) {
                             setInfoModal({ isOpen: true, item: contextMenu.item });

@@ -1,19 +1,35 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, X, File, Folder, Loader2 } from 'lucide-react';
 import { fileService } from '../../services/api';
 import type { DriveItem } from '../../stores/files';
 import { formatFileSize } from '../../utils/file';
 
+// 删除记录的类型定义（用于回收站搜索）
+interface DeletedItem {
+    id: string;
+    fileId: string;
+    name: string;
+    path: string;
+    folder?: object;
+    size: number;
+    deletedAt: string;
+    parentId: string | null;
+}
+
 export default function SearchBar() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [query, setQuery] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [results, setResults] = useState<DriveItem[]>([]);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const searchTimeoutRef = useRef<number | null>(null);
+
+    // 判断是否在回收站页面
+    const isTrashPage = location.pathname === '/trash';
 
     // 点击外部关闭
     useEffect(() => {
@@ -42,10 +58,46 @@ export default function SearchBar() {
         setIsSearching(true);
         searchTimeoutRef.current = setTimeout(async () => {
             try {
-                const response = await fileService.search(query);
-                if (response.success && response.data) {
-                    const data = response.data as { items: DriveItem[] };
-                    setResults(data.items || []);
+                if (isTrashPage) {
+                    // 回收站：搜索本地已删除文件
+                    const response = await fileService.getTrash();
+                    if (response.success && response.data) {
+                        const data = response.data as { items: DeletedItem[] };
+                        const allItems = data.items || [];
+
+                        // 本地过滤
+                        const filtered = allItems.filter(item =>
+                            item.name.toLowerCase().includes(query.toLowerCase())
+                        );
+
+                        // 转换为 DriveItem 格式
+                        setResults(filtered.map(item => ({
+                            id: item.id,
+                            name: item.name,
+                            size: item.size,
+                            folder: item.folder,
+                            parentReference: {
+                                path: item.path,
+                                id: item.parentId || undefined,
+                            },
+                            lastModifiedDateTime: item.deletedAt,
+                        } as DriveItem)));
+                    }
+                } else {
+                    // 其他页面：全局搜索 OneDrive
+                    const response = await fileService.search(query);
+                    if (response.success && response.data) {
+                        const data = response.data as { items: DriveItem[] };
+                        const allItems = data.items || [];
+
+                        // 前端过滤：只显示文件名匹配的结果
+                        // OneDrive API 会搜索文件内容，我们只需要文件名匹配
+                        const filtered = allItems.filter(item =>
+                            item.name.toLowerCase().includes(query.toLowerCase())
+                        );
+
+                        setResults(filtered);
+                    }
                 }
             } catch (error) {
                 console.error('Search error:', error);
@@ -59,16 +111,24 @@ export default function SearchBar() {
                 clearTimeout(searchTimeoutRef.current);
             }
         };
-    }, [query]);
+    }, [query, isTrashPage]);
 
     const handleResultClick = (item: DriveItem) => {
-        if (item.folder) {
-            navigate(`/drive/${item.id}`);
-        } else if (item.parentReference?.id) {
-            navigate(`/drive/${item.parentReference.id}`);
+        if (isTrashPage) {
+            // 回收站：关闭搜索框，保持在回收站页面
+            // 不跳转，因为回收站没有文件夹导航
+            setIsOpen(false);
+            setQuery('');
+        } else {
+            // 其他页面：跳转到文件所在文件夹
+            if (item.folder) {
+                navigate(`/drive/${item.id}`);
+            } else if (item.parentReference?.id) {
+                navigate(`/drive/${item.parentReference.id}`);
+            }
+            setIsOpen(false);
+            setQuery('');
         }
-        setIsOpen(false);
-        setQuery('');
     };
 
     const handleClear = () => {
@@ -90,7 +150,7 @@ export default function SearchBar() {
                         setIsOpen(true);
                     }}
                     onFocus={() => setIsOpen(true)}
-                    placeholder="搜索文件和文件夹..."
+                    placeholder={isTrashPage ? "搜索回收站..." : "搜索文件和文件夹..."}
                     className="w-full pl-10 pr-10 py-2 bg-dark-100 dark:bg-dark-700 border border-transparent focus:border-primary-500 focus:bg-white dark:focus:bg-dark-800 rounded-lg text-dark-900 dark:text-dark-100 placeholder-dark-400 transition-colors"
                 />
                 {query && (
@@ -123,8 +183,8 @@ export default function SearchBar() {
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-dark-50 dark:hover:bg-dark-700/50 transition-colors text-left"
                                 >
                                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${item.folder
-                                            ? 'bg-yellow-100 dark:bg-yellow-900/30'
-                                            : 'bg-blue-100 dark:bg-blue-900/30'
+                                        ? 'bg-yellow-100 dark:bg-yellow-900/30'
+                                        : 'bg-blue-100 dark:bg-blue-900/30'
                                         }`}>
                                         {item.folder ? (
                                             <Folder className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />

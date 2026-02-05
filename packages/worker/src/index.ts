@@ -8,6 +8,7 @@ import { fileRoutes } from './handlers/files';
 import { shareRoutes } from './handlers/shares';
 import { setupRoutes } from './handlers/setup';
 import { oauthRoutes } from './handlers/oauth';
+import { favoriteRoutes } from './handlers/favorites';
 import { authMiddleware } from './middleware/auth';
 import { initCheck } from './middleware/init-check';
 
@@ -64,6 +65,9 @@ app.route('/api/files', fileRoutes);
 
 // 分享管理路由
 app.route('/api/shares', shareRoutes.authenticated);
+
+// 收藏管理路由
+app.route('/api/favorites', favoriteRoutes);
 
 // 404 处理
 app.notFound((c) =>

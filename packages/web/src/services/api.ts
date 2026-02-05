@@ -5,6 +5,7 @@ const BASE_URL = '/api';
 export interface ApiResponse<T = unknown> {
     success: boolean;
     data?: T;
+    message?: string;
     error?: {
         code: string;
         message: string;
@@ -148,6 +149,11 @@ export const fileService = {
         }),
 
     getVersions: (itemId: string) => api.get(`/files/${itemId}/versions`),
+
+    // 回收站
+    getTrash: () => api.get('/files/trash'),
+    restore: (itemId: string) => api.post(`/files/${itemId}/restore`),
+    permanentDelete: (itemId: string) => api.delete(`/files/${itemId}/permanent`),
 };
 
 // 分享服务
@@ -222,6 +228,33 @@ export const userService = {
 
     resetPassword: (userId: string, newPassword: string) =>
         api.post(`/users/${userId}/reset-password`, { new_password: newPassword }),
+};
+
+// 收藏服务
+export const favoriteService = {
+    list: () => api.get<{
+        items: Array<{
+            id: string;
+            file_id: string;
+            file_name: string;
+            file_path: string;
+            file_type: 'file' | 'folder';
+            created_at: string;
+        }>
+    }>('/favorites'),
+
+    add: (file: {
+        file_id: string;
+        file_name: string;
+        file_path: string;
+        file_type: 'file' | 'folder';
+    }) => api.post('/favorites', file),
+
+    remove: (fileId: string) => api.delete(`/favorites/${fileId}`),
+
+    check: (fileId: string) => api.get<{ isFavorite: boolean; favoriteId: string | null }>(`/favorites/check/${fileId}`),
+
+    checkBatch: (fileIds: string[]) => api.post<Record<string, boolean>>('/favorites/check-batch', { fileIds }),
 };
 
 // 系统服务

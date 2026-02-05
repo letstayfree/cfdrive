@@ -398,18 +398,30 @@ export class OneDriveService {
 
     /**
      * 获取回收站项目
+     * 注意：OneDrive for Business 和个人 OneDrive 使用不同的端点
      */
     async getDeletedItems(): Promise<DriveItem[]> {
-        // 注意：OneDrive 的回收站需要使用特殊的端点
-        // 这里使用 delta 查询来获取已删除的项目
-        try {
-            // 尝试获取回收站内容
-            const response = await this.graph.request<{ value: DriveItem[] }>('/drive/special/recycle/children');
-            return response.value;
-        } catch {
-            // 如果不支持，返回空数组
-            return [];
+        // 尝试多种端点
+        const endpoints = [
+            '/me/drive/special/recycle/children',
+            '/drive/special/recycle/children',
+            '/me/drive/items/root/children?$filter=deleted ne null',
+        ];
+
+        for (const endpoint of endpoints) {
+            try {
+                const response = await this.graph.request<{ value: DriveItem[] }>(endpoint);
+                if (response.value && response.value.length >= 0) {
+                    return response.value;
+                }
+            } catch (error) {
+                // 继续尝试下一个端点
+                console.log(`Trash endpoint ${endpoint} failed:`, error);
+            }
         }
+
+        // 如果所有端点都失败，抛出错误让前端知道
+        throw new Error('TRASH_NOT_SUPPORTED');
     }
 
     /**

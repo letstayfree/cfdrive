@@ -9,6 +9,8 @@ import SetupPage from './pages/SetupPage';
 import DrivePage from './pages/DrivePage';
 import ShareViewPage from './pages/ShareViewPage';
 import SharesPage from './pages/SharesPage';
+import FavoritesPage from './pages/FavoritesPage';
+import TrashPage from './pages/TrashPage';
 import SettingsPage from './pages/SettingsPage';
 import UsersPage from './pages/UsersPage';
 
@@ -93,8 +95,8 @@ export default function App() {
                     <Route index element={<Navigate to="/drive" replace />} />
                     <Route path="drive" element={<DrivePage />} />
                     <Route path="drive/:folderId" element={<DrivePage />} />
-                    <Route path="favorites" element={<DrivePage type="favorites" />} />
-                    <Route path="trash" element={<DrivePage type="trash" />} />
+                    <Route path="favorites" element={<FavoritesPage />} />
+                    <Route path="trash" element={<TrashPage />} />
                     <Route path="shares" element={<SharesPage />} />
                     <Route path="settings" element={<SettingsPage />} />
 

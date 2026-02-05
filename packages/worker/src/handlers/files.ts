@@ -107,6 +107,106 @@ files.get('/', async (c) => {
 });
 
 /**
+ * 获取回收站内容
+ * GET /api/files/trash
+ * 注意：此路由必须在 /:id 之前定义，否则会被匹配为 id 参数
+ */
+files.get('/trash', async (c) => {
+    try {
+        const user = c.get('user') as User;
+
+        // 只有管理员可以查看回收站
+        if (user.role !== 'superadmin') {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'FORBIDDEN', message: '权限不足' },
+                },
+                403
+            );
+        }
+
+        // 从本地数据库读取已删除文件（回收站数据保留30天）
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const result = await c.env.DB.prepare(`
+            SELECT id, file_id, file_name, file_path, file_type, file_size, deleted_at, parent_id, metadata
+            FROM deleted_items
+            WHERE deleted_at > ?
+            ORDER BY deleted_at DESC
+        `).bind(thirtyDaysAgo).all();
+
+        const items = (result.results || []).map((row: Record<string, unknown>) => ({
+            id: row.id as string,
+            fileId: row.file_id as string,
+            name: row.file_name as string,
+            path: row.file_path as string,
+            folder: (row.file_type as string) === 'folder' ? {} : undefined,
+            size: row.file_size as number,
+            deletedAt: row.deleted_at as string,
+            parentId: row.parent_id as string | null,
+            metadata: row.metadata ? JSON.parse(row.metadata as string) : null,
+        }));
+
+        return c.json({
+            success: true,
+            data: { items },
+        });
+    } catch (error) {
+        console.error('Get trash error:', error);
+        return c.json(
+            {
+                success: false,
+                error: { code: 'TRASH_ERROR', message: '获取回收站失败' },
+            },
+            500
+        );
+    }
+});
+
+/**
+ * 搜索文件
+ * GET /api/files/search
+ * 注意：此路由必须在 /:id 之前定义，否则会被匹配为 id 参数
+ */
+files.get('/search', async (c) => {
+    try {
+        const user = c.get('user') as User;
+        const query = c.req.query('q');
+        const folderId = c.req.query('folderId');
+
+        if (!query) {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'INVALID_INPUT', message: '搜索关键词为必填项' },
+                },
+                400
+            );
+        }
+
+        const onedrive = getOneDriveService(c.env);
+        const items = await onedrive.search(query, folderId);
+
+        // 如果不是管理员，需要过滤掉没有权限的文件
+        // TODO: 实现更精细的权限过滤
+
+        return c.json({
+            success: true,
+            data: { items },
+        });
+    } catch (error) {
+        console.error('Search error:', error);
+        return c.json(
+            {
+                success: false,
+                error: { code: 'SEARCH_ERROR', message: '搜索失败' },
+            },
+            500
+        );
+    }
+});
+
+/**
  * 获取文件/文件夹详情
  * GET /api/files/:id
  */
@@ -293,12 +393,38 @@ files.delete('/:id', async (c) => {
 
         const onedrive = getOneDriveService(c.env);
 
-        // 先获取项目信息用于日志
+        // 先获取项目信息用于日志和回收站记录
         let itemInfo: DriveItem | null = null;
         try {
             itemInfo = await onedrive.getItem(itemId);
         } catch {
             // 忽略错误
+        }
+
+        // 记录到已删除文件表（用于回收站功能）
+        if (itemInfo) {
+            const deletedId = generateId();
+            const now = new Date().toISOString();
+            await c.env.DB.prepare(`
+                INSERT INTO deleted_items (id, user_id, file_id, file_name, file_path, file_type, file_size, deleted_at, parent_id, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+                deletedId,
+                user.id,
+                itemId,
+                itemInfo.name,
+                itemInfo.parentReference?.path?.replace('/drive/root:', '') || '/',
+                itemInfo.folder ? 'folder' : 'file',
+                itemInfo.size || 0,
+                now,
+                itemInfo.parentReference?.id || null,
+                JSON.stringify({
+                    mimeType: itemInfo.file?.mimeType,
+                    webUrl: itemInfo.webUrl,
+                    createdDateTime: itemInfo.createdDateTime,
+                    lastModifiedDateTime: itemInfo.lastModifiedDateTime,
+                })
+            ).run();
         }
 
         await onedrive.deleteItem(itemId);
@@ -530,47 +656,7 @@ files.get('/:id/download', async (c) => {
     }
 });
 
-/**
- * 搜索文件
- * GET /api/files/search
- */
-files.get('/search', async (c) => {
-    try {
-        const user = c.get('user') as User;
-        const query = c.req.query('q');
-        const folderId = c.req.query('folderId');
 
-        if (!query) {
-            return c.json(
-                {
-                    success: false,
-                    error: { code: 'INVALID_INPUT', message: '搜索关键词为必填项' },
-                },
-                400
-            );
-        }
-
-        const onedrive = getOneDriveService(c.env);
-        const items = await onedrive.search(query, folderId);
-
-        // 如果不是管理员，需要过滤掉没有权限的文件
-        // TODO: 实现更精细的权限过滤
-
-        return c.json({
-            success: true,
-            data: { items },
-        });
-    } catch (error) {
-        console.error('Search error:', error);
-        return c.json(
-            {
-                success: false,
-                error: { code: 'SEARCH_ERROR', message: '搜索失败' },
-            },
-            500
-        );
-    }
-});
 
 /**
  * 获取文件预览 URL
@@ -827,4 +913,210 @@ files.post('/upload/session', async (c) => {
     }
 });
 
+/**
+ * 恢复回收站项目
+ * POST /api/files/:id/restore
+ * 注意：id 是 deleted_items 表中的记录 ID
+ * 策略：先从 OneDrive 回收站查找文件，获取正确的 item ID 后再恢复
+ */
+files.post('/:id/restore', async (c) => {
+    try {
+        const user = c.get('user') as User;
+        const deletedItemId = c.req.param('id');
+
+        // 只有管理员可以恢复
+        if (user.role !== 'superadmin') {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'FORBIDDEN', message: '权限不足' },
+                },
+                403
+            );
+        }
+
+        // 从数据库获取删除记录
+        const record = await c.env.DB.prepare(`
+            SELECT file_id, file_name, parent_id, deleted_at FROM deleted_items WHERE id = ?
+        `).bind(deletedItemId).first();
+
+        if (!record) {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'NOT_FOUND', message: '找不到该删除记录' },
+                },
+                404
+            );
+        }
+
+        const originalFileId = record.file_id as string;
+        const fileName = record.file_name as string;
+        const deletedAt = record.deleted_at as string;
+
+        const onedrive = getOneDriveService(c.env);
+        let restoredItem: DriveItem | null = null;
+        let restoreSuccess = false;
+        let errorMessage = '';
+
+        try {
+            // 策略1：尝试直接用原始 ID 恢复
+            console.log(`Attempting to restore file with original ID: ${originalFileId} (${fileName})`);
+            try {
+                restoredItem = await onedrive.restoreFromTrash(originalFileId);
+                restoreSuccess = true;
+                console.log(`Successfully restored file with original ID: ${originalFileId}`);
+            } catch (directRestoreError) {
+                console.log('Direct restore failed, trying to find file in recycle bin...');
+
+                // 策略2：从回收站查找文件
+                try {
+                    const deletedItems = await onedrive.getDeletedItems();
+
+                    // 根据文件名和删除时间查找匹配的文件
+                    const matchedItem = deletedItems.find(item => {
+                        const nameMatch = item.name === fileName;
+                        // 允许时间有一定误差（5分钟内）
+                        const timeMatch = item.deletedDateTime &&
+                            Math.abs(new Date(item.deletedDateTime).getTime() - new Date(deletedAt).getTime()) < 5 * 60 * 1000;
+                        return nameMatch && (timeMatch || !item.deletedDateTime);
+                    });
+
+                    if (matchedItem && matchedItem.id) {
+                        console.log(`Found file in recycle bin with ID: ${matchedItem.id}`);
+                        restoredItem = await onedrive.restoreFromTrash(matchedItem.id);
+                        restoreSuccess = true;
+                        console.log(`Successfully restored file using recycle bin ID: ${matchedItem.id}`);
+                    } else {
+                        throw new Error('File not found in recycle bin');
+                    }
+                } catch (recycleBinError) {
+                    console.error('Failed to find/restore from recycle bin:', recycleBinError);
+                    throw recycleBinError;
+                }
+            }
+        } catch (error) {
+            console.error('Restore failed:', error);
+            errorMessage = error instanceof Error ? error.message : String(error);
+
+            // 检查错误类型
+            if (errorMessage.includes('itemNotFound') || errorMessage.includes('404') || errorMessage.includes('not found')) {
+                errorMessage = '文件可能已被永久删除或已过期';
+            } else if (errorMessage.includes('accessDenied') || errorMessage.includes('403')) {
+                errorMessage = 'OneDrive for Business 可能需要额外权限才能恢复文件';
+            } else if (errorMessage.includes('TRASH_NOT_SUPPORTED')) {
+                errorMessage = 'OneDrive API 不支持访问回收站';
+            }
+        }
+
+        if (restoreSuccess && restoredItem) {
+            // 从删除记录表中移除
+            await c.env.DB.prepare('DELETE FROM deleted_items WHERE id = ?').bind(deletedItemId).run();
+
+            // 记录访问日志
+            await logAccess(c.env.DB, user.id, 'restore', restoredItem.folder ? 'folder' : 'file', originalFileId, restoredItem.name, c.req.raw);
+
+            return c.json({
+                success: true,
+                data: restoredItem,
+                message: '文件已成功恢复'
+            });
+        } else {
+            // 恢复失败，但仍从本地记录中移除
+            await c.env.DB.prepare('DELETE FROM deleted_items WHERE id = ?').bind(deletedItemId).run();
+
+            return c.json({
+                success: true,
+                data: {
+                    message: '已从回收站记录中移除',
+                    note: `无法通过 API 自动恢复：${errorMessage}。请在 OneDrive 网页版手动恢复。`,
+                    fileId: originalFileId,
+                    fileName,
+                    oneDriveUrl: 'https://onedrive.live.com/?id=root&cid=recycleBin'
+                },
+            });
+        }
+    } catch (error) {
+        console.error('Restore error:', error);
+        return c.json(
+            {
+                success: false,
+                error: { code: 'RESTORE_ERROR', message: '恢复失败' },
+            },
+            500
+        );
+    }
+});
+
+/**
+ * 永久删除项目（从回收站记录中移除）
+ * DELETE /api/files/:id/permanent
+ * 注意：id 是 deleted_items 表中的记录 ID
+ */
+files.delete('/:id/permanent', async (c) => {
+    try {
+        const user = c.get('user') as User;
+        const deletedItemId = c.req.param('id');
+
+        // 只有管理员可以永久删除
+        if (user.role !== 'superadmin') {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'FORBIDDEN', message: '权限不足' },
+                },
+                403
+            );
+        }
+
+        // 从数据库获取删除记录
+        const record = await c.env.DB.prepare(`
+            SELECT file_id, file_name FROM deleted_items WHERE id = ?
+        `).bind(deletedItemId).first();
+
+        if (!record) {
+            return c.json(
+                {
+                    success: false,
+                    error: { code: 'NOT_FOUND', message: '找不到该删除记录' },
+                },
+                404
+            );
+        }
+
+        const fileId = record.file_id as string;
+        const fileName = record.file_name as string;
+
+        // 尝试通过 Graph API 永久删除（如果还在回收站中）
+        try {
+            const onedrive = getOneDriveService(c.env);
+            await onedrive.permanentlyDelete(fileId);
+        } catch {
+            // 忽略错误，可能文件已经被永久删除
+            console.log('Graph permanent delete failed, file may already be permanently deleted');
+        }
+
+        // 从删除记录表中移除
+        await c.env.DB.prepare('DELETE FROM deleted_items WHERE id = ?').bind(deletedItemId).run();
+
+        // 记录访问日志
+        await logAccess(c.env.DB, user.id, 'permanent_delete', 'file', fileId, fileName, c.req.raw);
+
+        return c.json({
+            success: true,
+            data: { message: '已永久删除' },
+        });
+    } catch (error) {
+        console.error('Permanent delete error:', error);
+        return c.json(
+            {
+                success: false,
+                error: { code: 'DELETE_ERROR', message: '永久删除失败' },
+            },
+            500
+        );
+    }
+});
+
 export const fileRoutes = files;
+

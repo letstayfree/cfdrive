@@ -86,3 +86,50 @@ export function isEditable(filename: string): boolean {
     const ext = getFileExtension(filename);
     return ['txt', 'md', 'json', 'js', 'ts', 'css', 'html', 'xml', 'yaml', 'yml'].includes(ext);
 }
+
+/**
+ * 格式化日期
+ */
+export function formatDate(dateString: string): string {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+
+    // 一分钟内
+    if (diff < 60 * 1000) {
+        return '刚刚';
+    }
+
+    // 一小时内
+    if (diff < 60 * 60 * 1000) {
+        const minutes = Math.floor(diff / (60 * 1000));
+        return `${minutes} 分钟前`;
+    }
+
+    // 今天
+    if (date.toDateString() === now.toDateString()) {
+        return `今天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    // 昨天
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+        return `昨天 ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+
+    // 一周内
+    if (diff < 7 * 24 * 60 * 60 * 1000) {
+        const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+        return days[date.getDay()];
+    }
+
+    // 今年
+    if (date.getFullYear() === now.getFullYear()) {
+        return `${date.getMonth() + 1}月${date.getDate()}日`;
+    }
+
+    // 其他年份
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
