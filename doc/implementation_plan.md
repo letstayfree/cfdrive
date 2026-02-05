@@ -659,3 +659,415 @@ pnpm dev    # 默认运行在 http://localhost:5173
 2. **文件操作**：创建文件夹 → 上传文件 → 重命名 → 复制 → 移动 → 删除
 3. **分享功能**：创建分享链接 → 设置密码 → 用新窗口访问 → 输入密码访问
 4. **权限验证**：用不同角色账户登录 → 验证对应权限生效
+
+---
+
+## 阶段七：Office365 配置管理 (预计 2 天)
+
+### 7.1 数据库设计
+
+#### [NEW] packages/worker/migrations/000X_settings.sql
+
+```sql
+-- ============================================
+-- 系统配置表 (存储 Office365 和其他配置)
+-- ============================================
+CREATE TABLE IF NOT EXISTS settings (
+    id TEXT PRIMARY KEY,
+    key TEXT UNIQUE NOT NULL,              -- 配置键名
+    value TEXT NOT NULL,                   -- 配置值 (加密存储敏感信息)
+    category TEXT NOT NULL,                -- 分类: office365/system/security
+    description TEXT,                      -- 配置说明
+    is_encrypted INTEGER DEFAULT 0,        -- 是否加密存储
+    updated_by TEXT,                       -- 最后更新人
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (updated_by) REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_settings_category ON settings(category);
+CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key);
+
+-- 初始化 Office365 配置项
+INSERT INTO settings (id, key, value, category, description, is_encrypted) VALUES
+    ('set_azure_client_id', 'AZURE_CLIENT_ID', '', 'office365', 'Azure AD 应用客户端 ID', 0),
+    ('set_azure_client_secret', 'AZURE_CLIENT_SECRET', '', 'office365', 'Azure AD 应用客户端密钥', 1),
+    ('set_azure_tenant_id', 'AZURE_TENANT_ID', '', 'office365', 'Azure AD 租户 ID', 0),
+    ('set_jwt_secret', 'JWT_SECRET', '', 'security', 'JWT 签名密钥', 1),
+    ('set_app_url', 'APP_URL', 'http://localhost:5173', 'system', '应用访问 URL', 0),
+    ('set_node_env', 'NODE_ENV', 'development', 'system', '运行环境', 0);
+```
+
+---
+
+### 7.2 配置服务层
+
+#### [NEW] packages/worker/src/services/settings.ts
+
+配置管理服务，支持：
+- 读取配置（带缓存）
+- 更新配置（自动清除缓存）
+- 敏感信息加密/解密
+- Cache API 缓存（24小时）
+
+```typescript
+import { Env } from '../types';
+
+const CACHE_KEY_PREFIX = 'settings:';
+const CACHE_TTL = 24 * 60 * 60; // 24小时
+
+/**
+ * 从数据库读取配置（带缓存）
+ */
+export async function getSetting(
+    env: Env,
+    key: string,
+    useCache = true
+): Promise<string | null> {
+    const cacheKey = `${CACHE_KEY_PREFIX}${key}`;
+    
+    // 尝试从 Cache API 读取
+    if (useCache) {
+        const cached = await env.CACHE.get(cacheKey);
+        if (cached) {
+            return cached;
+        }
+    }
+    
+    // 从数据库读取
+    const result = await env.DB.prepare(
+        'SELECT value, is_encrypted FROM settings WHERE key = ?'
+    ).bind(key).first();
+    
+    if (!result) return null;
+    
+    let value = result.value as string;
+    
+    // 如果是加密存储，解密
+    if (result.is_encrypted) {
+        value = await decryptValue(value, env.JWT_SECRET);
+    }
+    
+    // 写入缓存
+    if (useCache) {
+        await env.CACHE.put(cacheKey, value, { expirationTtl: CACHE_TTL });
+    }
+    
+    return value;
+}
+
+/**
+ * 批量读取配置
+ */
+export async function getSettings(
+    env: Env,
+    category?: string
+): Promise<Record<string, string>> {
+    const query = category
+        ? 'SELECT key, value, is_encrypted FROM settings WHERE category = ?'
+        : 'SELECT key, value, is_encrypted FROM settings';
+    
+    const stmt = category 
+        ? env.DB.prepare(query).bind(category)
+        : env.DB.prepare(query);
+    
+    const results = await stmt.all();
+    const settings: Record<string, string> = {};
+    
+    for (const row of results.results) {
+        let value = row.value as string;
+        if (row.is_encrypted) {
+            value = await decryptValue(value, env.JWT_SECRET);
+        }
+        settings[row.key as string] = value;
+    }
+    
+    return settings;
+}
+
+/**
+ * 更新配置
+ */
+export async function updateSetting(
+    env: Env,
+    key: string,
+    value: string,
+    userId: string
+): Promise<void> {
+    // 检查配置是否需要加密
+    const setting = await env.DB.prepare(
+        'SELECT is_encrypted FROM settings WHERE key = ?'
+    ).bind(key).first();
+    
+    if (!setting) {
+        throw new Error('配置项不存在');
+    }
+    
+    let finalValue = value;
+    if (setting.is_encrypted) {
+        finalValue = await encryptValue(value, env.JWT_SECRET);
+    }
+    
+    // 更新数据库
+    await env.DB.prepare(`
+        UPDATE settings 
+        SET value = ?, updated_by = ?, updated_at = datetime('now')
+        WHERE key = ?
+    `).bind(finalValue, userId, key).run();
+    
+    // 清除缓存
+    await clearSettingCache(env, key);
+}
+
+/**
+ * 清除配置缓存
+ */
+export async function clearSettingCache(env: Env, key?: string): Promise<void> {
+    if (key) {
+        await env.CACHE.delete(`${CACHE_KEY_PREFIX}${key}`);
+    } else {
+        // 清除所有配置缓存（通过列举所有 settings 键）
+        const allSettings = await env.DB.prepare('SELECT key FROM settings').all();
+        for (const row of allSettings.results) {
+            await env.CACHE.delete(`${CACHE_KEY_PREFIX}${row.key}`);
+        }
+    }
+}
+
+/**
+ * 简单加密（使用 AES-GCM）
+ */
+async function encryptValue(value: string, secret: string): Promise<string> {
+    // 实现 AES-GCM 加密
+    // 返回 base64 编码的密文
+    // TODO: 实现加密逻辑
+    return value; // 临时返回原值
+}
+
+/**
+ * 简单解密
+ */
+async function decryptValue(encrypted: string, secret: string): Promise<string> {
+    // 实现 AES-GCM 解密
+    // TODO: 实现解密逻辑
+    return encrypted; // 临时返回原值
+}
+```
+
+---
+
+### 7.3 配置管理 API
+
+#### [NEW] packages/worker/src/handlers/settings.ts
+
+```typescript
+import { Hono } from 'hono';
+import { Env, User } from '../types';
+import { getSetting, getSettings, updateSetting, clearSettingCache } from '../services/settings';
+
+const settings = new Hono<{ Bindings: Env }>();
+
+/**
+ * 获取所有配置（仅管理员）
+ * GET /api/settings
+ */
+settings.get('/', async (c) => {
+    const user = c.get('user') as User;
+    
+    if (user.role !== 'superadmin') {
+        return c.json({ success: false, error: { code: 'FORBIDDEN', message: '权限不足' } }, 403);
+    }
+    
+    const category = c.req.query('category');
+    const allSettings = await getSettings(c.env, category);
+    
+    // 不返回加密的敏感值，只返回是否已配置
+    const safeSettings = Object.entries(allSettings).map(([key, value]) => ({
+        key,
+        value: key.includes('SECRET') || key.includes('PASSWORD') 
+            ? (value ? '********' : '') 
+            : value,
+        isConfigured: !!value,
+    }));
+    
+    return c.json({ success: true, data: safeSettings });
+});
+
+/**
+ * 更新配置（仅管理员）
+ * PUT /api/settings/:key
+ */
+settings.put('/:key', async (c) => {
+    const user = c.get('user') as User;
+    
+    if (user.role !== 'superadmin') {
+        return c.json({ success: false, error: { code: 'FORBIDDEN', message: '权限不足' } }, 403);
+    }
+    
+    const key = c.req.param('key');
+    const { value } = await c.req.json();
+    
+    await updateSetting(c.env, key, value, user.id);
+    
+    return c.json({ success: true, message: '配置已更新' });
+});
+
+/**
+ * 批量更新配置（仅管理员）
+ * POST /api/settings/batch
+ */
+settings.post('/batch', async (c) => {
+    const user = c.get('user') as User;
+    
+    if (user.role !== 'superadmin') {
+        return c.json({ success: false, error: { code: 'FORBIDDEN', message: '权限不足' } }, 403);
+    }
+    
+    const { settings: settingsToUpdate } = await c.req.json<{ 
+        settings: Array<{ key: string; value: string }> 
+    }>();
+    
+    for (const setting of settingsToUpdate) {
+        await updateSetting(c.env, setting.key, setting.value, user.id);
+    }
+    
+    return c.json({ success: true, message: '配置已批量更新' });
+});
+
+/**
+ * 清除配置缓存（仅管理员）
+ * POST /api/settings/cache/clear
+ */
+settings.post('/cache/clear', async (c) => {
+    const user = c.get('user') as User;
+    
+    if (user.role !== 'superadmin') {
+        return c.json({ success: false, error: { code: 'FORBIDDEN', message: '权限不足' } }, 403);
+    }
+    
+    await clearSettingCache(c.env);
+    
+    return c.json({ success: true, message: '缓存已清除' });
+});
+
+export default settings;
+```
+
+---
+
+### 7.4 前端配置页面
+
+#### [NEW] packages/web/src/pages/SettingsPage.tsx
+
+Office365 配置管理页面，包含：
+- 配置项表单
+- 敏感信息遮罩显示
+- 测试连接按钮
+- 保存配置
+- 清除缓存
+
+```typescript
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { settingsService } from '../services/api';
+import toast from 'react-hot-toast';
+
+export default function SettingsPage() {
+    const queryClient = useQueryClient();
+    const [showSecrets, setShowSecrets] = useState(false);
+    
+    // 获取配置
+    const { data: settings, isLoading } = useQuery({
+        queryKey: ['settings', 'office365'],
+        queryFn: () => settingsService.getAll('office365'),
+    });
+    
+    // 更新配置
+    const updateMutation = useMutation({
+        mutationFn: (data: Array<{ key: string; value: string }>) =>
+            settingsService.batchUpdate(data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['settings'] });
+            toast.success('配置已保存');
+        },
+        onError: () => {
+            toast.error('保存失败');
+        },
+    });
+    
+    // 清除缓存
+    const clearCacheMutation = useMutation({
+        mutationFn: () => settingsService.clearCache(),
+        onSuccess: () => {
+            toast.success('缓存已清除');
+        },
+    });
+    
+    // ... 表单渲染逻辑
+}
+```
+
+---
+
+### 7.5 迁移现有代码
+
+#### [MODIFY] packages/worker/src/services/graph.ts
+
+将硬编码的环境变量改为从数据库读取：
+
+```typescript
+// 之前
+const clientId = env.AZURE_CLIENT_ID;
+
+// 之后
+const clientId = await getSetting(env, 'AZURE_CLIENT_ID');
+```
+
+#### [MODIFY] packages/worker/src/index.ts
+
+在 Worker 启动时预加载关键配置到缓存：
+
+```typescript
+import { getSettings } from './services/settings';
+
+// Worker 启动时预热缓存
+async function warmupCache(env: Env) {
+    await getSettings(env, 'office365');
+    await getSettings(env, 'security');
+}
+```
+
+---
+
+### 7.6 实现要点
+
+**缓存策略**：
+- 使用 Cloudflare Cache API（KV 命名空间）
+- 默认缓存 24 小时
+- 配置更新时主动清除对应缓存
+- 支持批量清除所有配置缓存
+
+**安全性**：
+- 敏感配置（SECRET、PASSWORD）加密存储
+- 前端显示时遮罩敏感值
+- 仅 SuperAdmin 可访问配置页面
+- 记录配置修改日志（updated_by）
+
+**向后兼容**：
+- 保留 `.dev.vars` 用于本地开发
+- 生产环境优先从数据库读取
+- 提供迁移脚本将 `.dev.vars` 导入数据库
+
+---
+
+### 7.7 测试清单
+
+- [ ] 配置读取（带缓存）
+- [ ] 配置更新（清除缓存）
+- [ ] 批量更新配置
+- [ ] 敏感信息加密/解密
+- [ ] 缓存过期自动刷新
+- [ ] 权限验证（非管理员无法访问）
+- [ ] 前端表单验证
+- [ ] 测试 Office365 连接
+
