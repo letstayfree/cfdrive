@@ -391,6 +391,42 @@ export const securityService = {
         api.put<{ enabled: boolean }>('/security/ip-whitelist/toggle', { enabled }),
 };
 
+// 配置服务
+export const configService = {
+    // 获取所有配置
+    getAll: () =>
+        api.get<{
+            items: Array<{ key: string; value: string; created_at: string; updated_at: string }>;
+            configurableKeys: string[];
+        }>('/config'),
+
+    // 获取单个配置
+    get: (key: string) =>
+        api.get<{ key: string; value: string; created_at: string; updated_at: string }>(`/config/${key}`),
+
+    // 更新单个配置
+    update: (key: string, value: string) =>
+        api.put<{ key: string; value: string; updated_at: string }>(`/config/${key}`, { value }),
+
+    // 批量更新配置
+    batchUpdate: (configs: Record<string, string>) =>
+        api.put<{ updates: Array<{ key: string; value: string }>; updated_at: string }>('/config', configs),
+
+    // 获取 OneDrive 连接状态
+    getOnedriveStatus: () =>
+        api.get<{
+            configured: boolean;
+            connected: boolean;
+            details: {
+                hasClientId: boolean;
+                hasClientSecret: boolean;
+                hasTenantId: boolean;
+                hasToken: boolean;
+                isTokenValid: boolean;
+            };
+        }>('/config/onedrive/status'),
+};
+
 // 默认导出常用方法
 export default {
     ...api,

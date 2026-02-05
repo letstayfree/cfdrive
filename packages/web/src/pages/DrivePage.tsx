@@ -15,6 +15,7 @@ import FilePreview from '../components/files/FilePreview';
 import MoveCopyModal from '../components/files/MoveCopyModal';
 import ShareModal from '../components/files/ShareModal';
 import FileInfoModal from '../components/files/FileInfoModal';
+import SortDropdown from '../components/files/SortDropdown';
 import Breadcrumb from '../components/layout/Breadcrumb';
 import { Loader2, Grid, List, RefreshCw, FolderPlus, AlertTriangle, Link2 } from 'lucide-react';
 
@@ -347,6 +348,9 @@ export default function DrivePage({ type }: DrivePageProps) {
                     >
                         <RefreshCw className="w-5 h-5 text-dark-500" />
                     </button>
+
+                    {/* 排序 */}
+                    <SortDropdown />
 
                     {/* 视图切换 */}
                     <div className="flex items-center border border-dark-200 dark:border-dark-700 rounded-lg overflow-hidden">

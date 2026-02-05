@@ -12,6 +12,7 @@ import { favoriteRoutes } from './handlers/favorites';
 import tagRoutes from './handlers/tags';
 import logRoutes from './handlers/logs';
 import securityRoutes from './handlers/security';
+import configRoutes from './handlers/config';
 import { authMiddleware } from './middleware/auth';
 import { initCheck } from './middleware/init-check';
 import { ipCheckMiddleware } from './middleware/ip-check';
@@ -84,6 +85,9 @@ app.route('/api/logs', logRoutes);
 
 // 安全管理路由
 app.route('/api/security', securityRoutes);
+
+// 配置管理路由
+app.route('/api/config', configRoutes);
 
 // 404 处理
 app.notFound((c) =>
