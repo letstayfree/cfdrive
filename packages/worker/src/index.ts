@@ -11,8 +11,10 @@ import { oauthRoutes } from './handlers/oauth';
 import { favoriteRoutes } from './handlers/favorites';
 import tagRoutes from './handlers/tags';
 import logRoutes from './handlers/logs';
+import securityRoutes from './handlers/security';
 import { authMiddleware } from './middleware/auth';
 import { initCheck } from './middleware/init-check';
+import { ipCheckMiddleware } from './middleware/ip-check';
 
 // 创建 Hono 应用
 const app = new Hono<{ Bindings: Env }>();
@@ -59,6 +61,9 @@ app.route('/api/auth', authRoutes);
 // === 以下路由需要认证 ===
 app.use('/api/*', authMiddleware);
 
+// IP 白名单检查中间件（在认证之后）
+app.use('/api/*', ipCheckMiddleware);
+
 // 用户管理路由
 app.route('/api/users', userRoutes);
 
@@ -76,6 +81,9 @@ app.route('/api/tags', tagRoutes);
 
 // 日志管理路由
 app.route('/api/logs', logRoutes);
+
+// 安全管理路由
+app.route('/api/security', securityRoutes);
 
 // 404 处理
 app.notFound((c) =>

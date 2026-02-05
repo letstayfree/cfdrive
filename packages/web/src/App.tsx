@@ -15,6 +15,7 @@ import SettingsPage from './pages/SettingsPage';
 import UsersPage from './pages/UsersPage';
 import TagsPage from './pages/TagsPage';
 import LogsPage from './pages/LogsPage';
+import SecurityPage from './pages/SecurityPage';
 
 // Layout
 import AppLayout from './components/layout/AppLayout';
@@ -117,6 +118,14 @@ export default function App() {
                         element={
                             <AdminRoute>
                                 <LogsPage />
+                            </AdminRoute>
+                        }
+                    />
+                    <Route
+                        path="security"
+                        element={
+                            <AdminRoute>
+                                <SecurityPage />
                             </AdminRoute>
                         }
                     />

@@ -367,6 +367,30 @@ export const logService = {
     cleanup: (days: number = 90) => api.delete(`/logs/cleanup?days=${days}`),
 };
 
+// 安全服务
+export const securityService = {
+    // IP 白名单
+    getIpWhitelist: () =>
+        api.get<{
+            enabled: boolean;
+            items: Array<{
+                id: string;
+                ip_pattern: string;
+                description: string | null;
+                is_active: number;
+                created_at: string;
+            }>;
+        }>('/security/ip-whitelist'),
+
+    addIpWhitelist: (data: { ip_pattern: string; description?: string }) =>
+        api.post<{ id: string; ip_pattern: string; description: string | null }>('/security/ip-whitelist', data),
+
+    deleteIpWhitelist: (id: string) => api.delete(`/security/ip-whitelist/${id}`),
+
+    toggleIpWhitelist: (enabled: boolean) =>
+        api.put<{ enabled: boolean }>('/security/ip-whitelist/toggle', { enabled }),
+};
+
 // 默认导出常用方法
 export default {
     ...api,

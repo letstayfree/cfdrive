@@ -991,11 +991,56 @@ export default function SettingsPage() {
     
     // ... 表单渲染逻辑
 }
+    // ... 表单渲染逻辑
+}
 ```
 
 ---
 
-### 7.5 迁移现有代码
+### 7.6 IP 白名单功能
+
+#### [NEW] packages/worker/src/handlers/security.ts
+
+```typescript
+import { Hono } from 'hono';
+import { Env, User } from '../types';
+import { generateId } from '../utils';
+
+const security = new Hono<{ Bindings: Env }>();
+
+// GET /api/security/ip-whitelist
+security.get('/ip-whitelist', async (c) => {
+    // 获取列表逻辑
+});
+
+// POST /api/security/ip-whitelist
+security.post('/ip-whitelist', async (c) => {
+    // 添加 IP 规则逻辑
+});
+
+// DELETE /api/security/ip-whitelist/:id
+security.delete('/ip-whitelist/:id', async (c) => {
+    // 删除 IP 规则逻辑
+});
+```
+
+#### [NEW] packages/worker/src/middleware/ip-check.ts
+
+```typescript
+import { Context, Next } from 'hono';
+import { Env } from '../types';
+
+export const ipCheckMiddleware = async (c: Context<{ Bindings: Env }>, next: Next) => {
+    // 检查全局开关
+    // 检查 IP 是否在白名单中
+    // 如果不在，返回 403 Forbidden
+    await next();
+};
+```
+
+---
+
+### 7.7 配置管理 API
 
 #### [MODIFY] packages/worker/src/services/graph.ts
 
