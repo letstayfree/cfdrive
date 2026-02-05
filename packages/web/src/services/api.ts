@@ -306,6 +306,67 @@ export const tagService = {
         api.get<{ tag: { id: string; name: string }; fileIds: string[] }>(`/tags/${tagId}/files`),
 };
 
+// 日志服务
+export const logService = {
+    getLogs: (params?: {
+        page?: number;
+        limit?: number;
+        user_id?: string;
+        action?: string;
+        resource_type?: string;
+        start_date?: string;
+        end_date?: string;
+    }) => {
+        const query = new URLSearchParams();
+        if (params) {
+            Object.entries(params).forEach(([key, value]) => {
+                if (value !== undefined) query.append(key, value.toString());
+            });
+        }
+        return api.get<{
+            logs: Array<{
+                id: string;
+                user_id: string | null;
+                action: string;
+                resource_type: string;
+                resource_id: string;
+                resource_path: string | null;
+                ip_address: string | null;
+                user_agent: string | null;
+                details: string | null;
+                created_at: string;
+                user: { username: string; email: string } | null;
+            }>;
+            pagination: {
+                page: number;
+                limit: number;
+                total: number;
+                pages: number;
+            };
+        }>(`/logs?${query.toString()}`);
+    },
+
+    getStats: (params?: { start_date?: string; end_date?: string }) => {
+        const query = new URLSearchParams();
+        if (params) {
+            Object.entries(params).forEach(([key, value]) => {
+                if (value) query.append(key, value);
+            });
+        }
+        return api.get<{
+            by_action: Array<{ action: string; count: number }>;
+            by_resource: Array<{ resource_type: string; count: number }>;
+            by_user: Array<{
+                user_id: string;
+                user: { username: string; email: string } | null;
+                count: number;
+            }>;
+        }>(`/logs/stats?${query.toString()}`);
+    },
+
+    cleanup: (days: number = 90) => api.delete(`/logs/cleanup?days=${days}`),
+};
+
 // 默认导出常用方法
 export default {
     ...api,

@@ -84,9 +84,6 @@ files.get('/', async (c) => {
         const onedrive = getOneDriveService(c.env);
         const result = await onedrive.listFolder(folderId, { top, skip, orderby });
 
-        // 记录访问日志
-        await logAccess(c.env.DB, user.id, 'list', 'folder', folderId, null, c.req.raw);
-
         return c.json({
             success: true,
             data: {

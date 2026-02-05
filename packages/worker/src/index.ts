@@ -10,6 +10,7 @@ import { setupRoutes } from './handlers/setup';
 import { oauthRoutes } from './handlers/oauth';
 import { favoriteRoutes } from './handlers/favorites';
 import tagRoutes from './handlers/tags';
+import logRoutes from './handlers/logs';
 import { authMiddleware } from './middleware/auth';
 import { initCheck } from './middleware/init-check';
 
@@ -72,6 +73,9 @@ app.route('/api/favorites', favoriteRoutes);
 
 // 标签管理路由
 app.route('/api/tags', tagRoutes);
+
+// 日志管理路由
+app.route('/api/logs', logRoutes);
 
 // 404 处理
 app.notFound((c) =>

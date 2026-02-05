@@ -9,6 +9,7 @@ import {
     Users,
     Cloud,
     Tag,
+    FileText,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -22,6 +23,7 @@ const navItems = [
 
 const adminItems = [
     { path: '/users', icon: Users, label: '用户管理' },
+    { path: '/logs', icon: FileText, label: '访问日志' },
 ];
 
 const bottomItems = [

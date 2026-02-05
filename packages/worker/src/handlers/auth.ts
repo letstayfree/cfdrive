@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import type { Env, User, Session } from '../types';
 import { generateId, generateToken, hashPassword, hashToken, verifyPassword, verifyToken } from '../utils';
+import { logAccess } from '../services/audit';
 
 const auth = new Hono<{ Bindings: Env }>();
 
@@ -120,6 +121,9 @@ auth.post('/login', async (c) => {
             .bind(new Date().toISOString(), user.id)
             .run();
 
+        // 记录登录日志
+        await logAccess(c.env.DB, user.id, 'login', 'user', user.id, null, c.req.raw);
+
         return c.json({
             success: true,
             data: {
@@ -160,6 +164,13 @@ auth.post('/logout', async (c) => {
 
             // 删除会话
             await c.env.DB.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(tokenHash).run();
+
+            // 记录登出日志（需要先解码 token 获取用户 ID，但这里简化处理，如果需要精确的用户ID，需要在 session 表被删除前查询）
+            // 尝试获取当前用户
+            const payload = await verifyToken(token, c.env.JWT_SECRET);
+            if (payload && payload.userId) {
+                await logAccess(c.env.DB, payload.userId as string, 'logout', 'user', payload.userId as string, null, c.req.raw);
+            }
         }
 
         return c.json({

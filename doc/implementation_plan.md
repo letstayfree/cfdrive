@@ -246,20 +246,6 @@ CREATE TABLE IF NOT EXISTS ip_whitelist (
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (created_by) REFERENCES users(id)
 );
-
--- ============================================
--- 两步验证表
--- ============================================
-CREATE TABLE IF NOT EXISTS two_factor_auth (
-    id TEXT PRIMARY KEY,
-    user_id TEXT UNIQUE NOT NULL,
-    secret TEXT NOT NULL,                   -- TOTP 密钥
-    backup_codes TEXT,                      -- JSON 数组的备用码
-    is_enabled INTEGER DEFAULT 0,
-    verified_at TEXT,
-    created_at TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
 ```
 
 ### 首次安装流程
