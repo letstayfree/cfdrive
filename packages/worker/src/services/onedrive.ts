@@ -1,4 +1,5 @@
 import type { Env, DriveItem } from '../types';
+import { getAzureConfig } from './azure-config';
 
 /**
  * Microsoft Graph API 客户端
@@ -22,7 +23,8 @@ export class GraphClient {
             return this.accessToken;
         }
 
-        const tokenUrl = `https://login.microsoftonline.com/${this.env.AZURE_TENANT_ID}/oauth2/v2.0/token`;
+        const azure = await getAzureConfig(this.env);
+        const tokenUrl = `https://login.microsoftonline.com/${azure.tenantId}/oauth2/v2.0/token`;
 
         const response = await fetch(tokenUrl, {
             method: 'POST',
@@ -30,8 +32,8 @@ export class GraphClient {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: new URLSearchParams({
-                client_id: this.env.AZURE_CLIENT_ID,
-                client_secret: this.env.AZURE_CLIENT_SECRET,
+                client_id: azure.clientId,
+                client_secret: azure.clientSecret,
                 scope: 'https://graph.microsoft.com/.default',
                 grant_type: 'client_credentials',
             }),

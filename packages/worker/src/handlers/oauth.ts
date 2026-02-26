@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import type { Env } from '../types';
 import { generateId, generateToken } from '../utils';
+import { getAzureConfig } from '../services/azure-config';
 
 const oauth = new Hono<{ Bindings: Env }>();
 
@@ -23,8 +24,7 @@ const SCOPES = [
  * GET /api/oauth/authorize
  */
 oauth.get('/authorize', async (c) => {
-    const tenant = c.env.AZURE_TENANT_ID;
-    const clientId = c.env.AZURE_CLIENT_ID;
+    const azure = await getAzureConfig(c.env);
     const redirectUri = `${c.env.APP_URL}/api/oauth/callback`;
 
     // 生成状态参数防止 CSRF
@@ -39,9 +39,9 @@ oauth.get('/authorize', async (c) => {
         sameSite: 'Lax',
     });
 
-    const authorizeUrl = AUTHORIZE_URL.replace('{tenant}', tenant);
+    const authorizeUrl = AUTHORIZE_URL.replace('{tenant}', azure.tenantId);
     const params = new URLSearchParams({
-        client_id: clientId,
+        client_id: azure.clientId,
         response_type: 'code',
         redirect_uri: redirectUri,
         scope: SCOPES,
@@ -83,8 +83,8 @@ oauth.get('/callback', async (c) => {
 
     try {
         // 交换 code 获取 token
-        const tenant = c.env.AZURE_TENANT_ID;
-        const tokenUrl = TOKEN_URL.replace('{tenant}', tenant);
+        const azure = await getAzureConfig(c.env);
+        const tokenUrl = TOKEN_URL.replace('{tenant}', azure.tenantId);
         const redirectUri = `${c.env.APP_URL}/api/oauth/callback`;
 
         const tokenResponse = await fetch(tokenUrl, {
@@ -93,8 +93,8 @@ oauth.get('/callback', async (c) => {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: new URLSearchParams({
-                client_id: c.env.AZURE_CLIENT_ID,
-                client_secret: c.env.AZURE_CLIENT_SECRET,
+                client_id: azure.clientId,
+                client_secret: azure.clientSecret,
                 code: code,
                 redirect_uri: redirectUri,
                 grant_type: 'authorization_code',
@@ -200,8 +200,8 @@ oauth.post('/refresh', async (c) => {
             expires_at: number;
         };
 
-        const tenant = c.env.AZURE_TENANT_ID;
-        const tokenUrl = TOKEN_URL.replace('{tenant}', tenant);
+        const azure = await getAzureConfig(c.env);
+        const tokenUrl = TOKEN_URL.replace('{tenant}', azure.tenantId);
 
         const refreshResponse = await fetch(tokenUrl, {
             method: 'POST',
@@ -209,8 +209,8 @@ oauth.post('/refresh', async (c) => {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: new URLSearchParams({
-                client_id: c.env.AZURE_CLIENT_ID,
-                client_secret: c.env.AZURE_CLIENT_SECRET,
+                client_id: azure.clientId,
+                client_secret: azure.clientSecret,
                 refresh_token: token.refresh_token,
                 grant_type: 'refresh_token',
                 scope: SCOPES,

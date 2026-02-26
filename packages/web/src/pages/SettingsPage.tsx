@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useThemeStore } from '../stores/theme';
 import { useAuthStore } from '../stores/auth';
-import { oauthService } from '../services/api';
+import { oauthService, configService } from '../services/api';
+import toast from 'react-hot-toast';
 import {
     Moon,
     Sun,
@@ -15,12 +16,76 @@ import {
     Loader2,
     CheckCircle,
     AlertCircle,
+    Cloud,
+    Save,
+    Eye,
+    EyeOff,
 } from 'lucide-react';
 
 export default function SettingsPage() {
     const { isDark, setTheme } = useThemeStore();
     const { user } = useAuthStore();
     const [isDisconnecting, setIsDisconnecting] = useState(false);
+    const queryClient = useQueryClient();
+
+    // Azure AD 配置状态
+    const [azureForm, setAzureForm] = useState({ clientId: '', clientSecret: '', tenantId: '' });
+    const [isSavingAzure, setIsSavingAzure] = useState(false);
+    const [showSecret, setShowSecret] = useState(false);
+
+    // 获取 Azure AD 配置
+    const { data: azureConfig } = useQuery({
+        queryKey: ['azure-config'],
+        queryFn: async () => {
+            const response = await configService.getAzureConfig();
+            return response.data;
+        },
+        enabled: user?.role === 'superadmin',
+    });
+
+    // 加载 Azure 配置到表单
+    useEffect(() => {
+        if (azureConfig) {
+            setAzureForm({
+                clientId: azureConfig.clientId || '',
+                clientSecret: '',
+                tenantId: azureConfig.tenantId || '',
+            });
+        }
+    }, [azureConfig]);
+
+    const handleSaveAzure = async () => {
+        if (!azureForm.clientId || !azureForm.tenantId) {
+            toast.error('请填写 Client ID 和 Tenant ID');
+            return;
+        }
+        // 如果 secret 为空且已配置过，使用占位表示不修改
+        const secretToSave = azureForm.clientSecret || (azureConfig?.clientSecret ? '__UNCHANGED__' : '');
+        if (!secretToSave) {
+            toast.error('请填写 Client Secret');
+            return;
+        }
+
+        setIsSavingAzure(true);
+        try {
+            const response = await configService.updateAzureConfig({
+                clientId: azureForm.clientId,
+                clientSecret: azureForm.clientSecret || '__UNCHANGED__',
+                tenantId: azureForm.tenantId,
+            });
+            if (response.success) {
+                toast.success('Azure AD 配置已保存');
+                queryClient.invalidateQueries({ queryKey: ['azure-config'] });
+                setAzureForm(prev => ({ ...prev, clientSecret: '' }));
+            } else {
+                toast.error(response.error?.message || '保存失败');
+            }
+        } catch {
+            toast.error('保存配置失败');
+        } finally {
+            setIsSavingAzure(false);
+        }
+    };
 
     // 检查 OneDrive 连接状态
     const { data: oauthStatus, refetch: refetchOauth } = useQuery({
@@ -81,6 +146,91 @@ export default function SettingsPage() {
                     </div>
                 </div>
             </section>
+
+            {/* Azure AD 配置 (仅管理员) */}
+            {user?.role === 'superadmin' && (
+                <section className="bg-white dark:bg-dark-800 rounded-xl shadow-sm p-6 mb-6">
+                    <h2 className="text-lg font-semibold text-dark-900 dark:text-dark-100 mb-4 flex items-center gap-2">
+                        <Cloud className="w-5 h-5" />
+                        Azure AD 配置
+                    </h2>
+                    <p className="text-sm text-dark-500 dark:text-dark-400 mb-4">
+                        配置 Microsoft Azure AD 应用凭据，用于连接 OneDrive 存储。
+                    </p>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
+                                Client ID
+                            </label>
+                            <input
+                                type="text"
+                                value={azureForm.clientId}
+                                onChange={(e) => setAzureForm(prev => ({ ...prev, clientId: e.target.value }))}
+                                placeholder="Azure 应用的 Client ID"
+                                className="w-full px-3 py-2 rounded-lg border border-dark-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-dark-900 dark:text-dark-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
+                                Client Secret
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type={showSecret ? 'text' : 'password'}
+                                    value={azureForm.clientSecret}
+                                    onChange={(e) => setAzureForm(prev => ({ ...prev, clientSecret: e.target.value }))}
+                                    placeholder={azureConfig?.clientSecret ? '已配置，留空则不修改' : 'Azure 应用的 Client Secret'}
+                                    className="w-full px-3 py-2 pr-10 rounded-lg border border-dark-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-dark-900 dark:text-dark-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowSecret(!showSecret)}
+                                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-dark-400 hover:text-dark-600 dark:hover:text-dark-300"
+                                >
+                                    {showSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-dark-700 dark:text-dark-300 mb-1">
+                                Tenant ID
+                            </label>
+                            <input
+                                type="text"
+                                value={azureForm.tenantId}
+                                onChange={(e) => setAzureForm(prev => ({ ...prev, tenantId: e.target.value }))}
+                                placeholder="Azure AD 的 Tenant ID"
+                                className="w-full px-3 py-2 rounded-lg border border-dark-200 dark:border-dark-600 bg-white dark:bg-dark-700 text-dark-900 dark:text-dark-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                            />
+                        </div>
+                        <div className="flex items-center justify-between pt-2">
+                            <div className="text-sm">
+                                {azureConfig?.configured ? (
+                                    <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                                        <CheckCircle className="w-4 h-4" /> 已配置
+                                    </span>
+                                ) : (
+                                    <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                        <AlertCircle className="w-4 h-4" /> 未配置
+                                    </span>
+                                )}
+                            </div>
+                            <button
+                                onClick={handleSaveAzure}
+                                disabled={isSavingAzure}
+                                className="btn btn-primary flex items-center gap-2"
+                            >
+                                {isSavingAzure ? (
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                    <Save className="w-4 h-4" />
+                                )}
+                                保存配置
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* OneDrive 连接 */}
             <section className="bg-white dark:bg-dark-800 rounded-xl shadow-sm p-6 mb-6">

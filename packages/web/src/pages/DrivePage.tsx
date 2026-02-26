@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useFilesStore, type DriveItem } from '../stores/files';
-import { fileService, oauthService, favoriteService } from '../services/api';
+import { fileService, oauthService, favoriteService, configService } from '../services/api';
 import toast from 'react-hot-toast';
 import FileList from '../components/files/FileList';
 import FileGrid from '../components/files/FileGrid';
@@ -18,7 +18,7 @@ import FileInfoModal from '../components/files/FileInfoModal';
 import SortDropdown from '../components/files/SortDropdown';
 import BatchActionsBar from '../components/files/BatchActionsBar';
 import Breadcrumb from '../components/layout/Breadcrumb';
-import { Loader2, Grid, List, LayoutList, RefreshCw, FolderPlus, AlertTriangle, Link2 } from 'lucide-react';
+import { Loader2, Grid, List, LayoutList, RefreshCw, FolderPlus, AlertTriangle, Link2, Settings } from 'lucide-react';
 
 interface DrivePageProps {
     type?: 'favorites' | 'trash' | 'shares';
@@ -85,6 +85,15 @@ export default function DrivePage({ type }: DrivePageProps) {
         queryKey: ['oauth-status'],
         queryFn: async () => {
             const response = await oauthService.checkStatus();
+            return response.data;
+        },
+    });
+
+    // Azure AD 配置状态
+    const { data: azureConfig } = useQuery({
+        queryKey: ['azure-config'],
+        queryFn: async () => {
+            const response = await configService.getAzureConfig();
             return response.data;
         },
     });
@@ -400,7 +409,31 @@ export default function DrivePage({ type }: DrivePageProps) {
         );
     }
 
-    // 未连接 OneDrive
+    // Azure AD 未配置 且 OneDrive 未连接
+    if (oauthStatus && !oauthStatus.connected && azureConfig && !azureConfig.configured) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-20 h-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mb-6">
+                    <Settings className="w-10 h-10 text-amber-600 dark:text-amber-400" />
+                </div>
+                <h2 className="text-xl font-semibold text-dark-900 dark:text-dark-100 mb-2">
+                    需要配置 Azure AD
+                </h2>
+                <p className="text-dark-500 dark:text-dark-400 mb-6 text-center max-w-md">
+                    当前还未配置 Azure AD 信息，请先前往设置页面完成配置
+                </p>
+                <button
+                    onClick={() => navigate('/settings')}
+                    className="btn btn-primary flex items-center gap-2"
+                >
+                    <Settings className="w-4 h-4" />
+                    前往设置
+                </button>
+            </div>
+        );
+    }
+
+    // OneDrive 未连接（Azure AD 已配置）
     if (oauthStatus && !oauthStatus.connected) {
         return (
             <div className="flex flex-col items-center justify-center py-20">

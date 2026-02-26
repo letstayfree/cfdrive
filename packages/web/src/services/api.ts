@@ -455,6 +455,18 @@ export const configService = {
                 isTokenValid: boolean;
             };
         }>('/config/onedrive/status'),
+
+    // Azure AD 配置
+    getAzureConfig: () =>
+        api.get<{
+            clientId: string;
+            clientSecret: string;
+            tenantId: string;
+            configured: boolean;
+        }>('/config/azure'),
+
+    updateAzureConfig: (data: { clientId: string; clientSecret: string; tenantId: string }) =>
+        api.put<{ message: string; updated_at: string }>('/config/azure', data),
 };
 
 // 默认导出常用方法

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../stores/auth';
-import { driveService } from '../../services/api';
+import { driveService, oauthService } from '../../services/api';
 import { formatFileSize } from '../../utils/file';
 import {
     HardDrive,
@@ -39,12 +39,24 @@ export default function Sidebar() {
     const { user } = useAuthStore();
     const isAdmin = user?.role === 'superadmin';
 
+    // 先检查 OneDrive 连接状态
+    const { data: oauthStatus } = useQuery({
+        queryKey: ['oauth-status'],
+        queryFn: async () => {
+            const response = await oauthService.checkStatus();
+            return response.data;
+        },
+    });
+
+    const isConnected = oauthStatus?.connected === true;
+
     const { data: quota } = useQuery({
         queryKey: ['drive-quota'],
         queryFn: async () => {
             const response = await driveService.getQuota();
             return response.data;
         },
+        enabled: isConnected, // 仅在 OneDrive 已连接时查询
         staleTime: 5 * 60 * 1000, // 5分钟缓存
     });
 
@@ -128,21 +140,23 @@ export default function Sidebar() {
                 ))}
             </div>
 
-            {/* 存储空间指示器 */}
-            <div className="p-4 border-t border-dark-200 dark:border-dark-700">
-                <div className="text-sm text-dark-500 dark:text-dark-400 mb-2">存储空间</div>
-                <div className="h-2 bg-dark-200 dark:bg-dark-700 rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-primary-500 rounded-full transition-all"
-                        style={{ width: `${quota ? usedPercent : 0}%` }}
-                    />
+            {/* 存储空间指示器 - 仅在 OneDrive 已连接时显示 */}
+            {isConnected && (
+                <div className="p-4 border-t border-dark-200 dark:border-dark-700">
+                    <div className="text-sm text-dark-500 dark:text-dark-400 mb-2">存储空间</div>
+                    <div className="h-2 bg-dark-200 dark:bg-dark-700 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-primary-500 rounded-full transition-all"
+                            style={{ width: `${quota ? usedPercent : 0}%` }}
+                        />
+                    </div>
+                    <div className="mt-2 text-xs text-dark-400 dark:text-dark-500">
+                        {quota
+                            ? `已使用 ${formatFileSize(quota.used)} / ${formatFileSize(quota.total)}`
+                            : '加载中...'}
+                    </div>
                 </div>
-                <div className="mt-2 text-xs text-dark-400 dark:text-dark-500">
-                    {quota
-                        ? `已使用 ${formatFileSize(quota.used)} / ${formatFileSize(quota.total)}`
-                        : '加载中...'}
-                </div>
-            </div>
+            )}
         </aside>
     );
 }

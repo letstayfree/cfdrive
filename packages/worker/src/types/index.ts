@@ -14,10 +14,10 @@ export interface Env {
     // 环境变量
     APP_ENV: string;
 
-    // Azure AD 配置 (从 .dev.vars 或 secrets 获取)
-    AZURE_CLIENT_ID: string;
-    AZURE_CLIENT_SECRET: string;
-    AZURE_TENANT_ID: string;
+    // Azure AD 配置 (可从数据库设置或环境变量获取)
+    AZURE_CLIENT_ID?: string;
+    AZURE_CLIENT_SECRET?: string;
+    AZURE_TENANT_ID?: string;
 
     // 应用配置
     JWT_SECRET: string;

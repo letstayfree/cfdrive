@@ -41,12 +41,9 @@
 
 ### 管理功能
 - 👤 **用户管理**: 添加、禁用、删除用户
-- ⚙️ **设置页面**: OneDrive 连接状态、主题切换
+- ⚙️ **设置页面**: Azure AD 配置、OneDrive 连接管理、主题切换
 - 📊 **访问日志**: 查看用户操作历史，支持筛选和统计
 - 🛡️ **IP 白名单**: 限制允许访问的 IP 地址
-
-### 待实现功能
-- ⚙️ Office 365 配置管理
 
 
 ## 🏗️ 技术架构
@@ -122,7 +119,7 @@ npm install
 
 # 配置环境变量
 cp packages/worker/.dev.vars.example packages/worker/.dev.vars
-# 编辑 .dev.vars 填入 Azure AD 配置
+# 编辑 .dev.vars 填入 JWT_SECRET 和 APP_URL
 
 # 初始化本地数据库
 cd packages/worker
@@ -138,16 +135,13 @@ npm run dev
 在 `packages/worker/.dev.vars` 中配置：
 
 ```env
-# Microsoft Azure AD
-AZURE_CLIENT_ID=your-client-id
-AZURE_CLIENT_SECRET=your-client-secret
-AZURE_TENANT_ID=common
-
 # 应用配置
 APP_URL=http://localhost:5173
 JWT_SECRET=your-jwt-secret-key
 NODE_ENV=development
 ```
+
+> **注意**: Azure AD 配置已迁移到系统设置页面管理，无需在环境变量中配置。如需通过环境变量配置（如 CI/CD 场景），仍可在 `.dev.vars` 或 Cloudflare 环境变量中设置 `AZURE_CLIENT_ID`、`AZURE_CLIENT_SECRET`、`AZURE_TENANT_ID`，系统会优先使用数据库中的配置，环境变量作为回退。
 
 ### Azure AD 应用配置
 
@@ -162,7 +156,31 @@ NODE_ENV=development
    - `Files.ReadWrite.All`
    - `offline_access`
    - `User.Read`
-6. 创建客户端密钥，复制到 `.dev.vars`
+6. 创建客户端密钥，记录 Client ID、Client Secret 和 Tenant ID
+
+### 配置 Azure AD 凭据
+
+有两种方式配置 Azure AD 凭据：
+
+**方式一：通过系统设置页面配置（推荐）**
+
+1. 启动应用并登录超级管理员账户
+2. 进入 **设置** 页面
+3. 在 **Azure AD 配置** 区域填写 Client ID、Client Secret、Tenant ID
+4. 点击 **保存配置**
+5. 回到 **我的网盘** 页面，点击 **连接 OneDrive**
+
+**方式二：通过环境变量配置**
+
+在 `packages/worker/.dev.vars` 中添加：
+
+```env
+AZURE_CLIENT_ID=your-client-id
+AZURE_CLIENT_SECRET=your-client-secret
+AZURE_TENANT_ID=your-tenant-id
+```
+
+> 系统优先读取数据库中的配置（方式一），如果数据库中未配置则回退到环境变量（方式二）。
 
 ## 📖 开发服务地址
 
