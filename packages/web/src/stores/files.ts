@@ -80,8 +80,8 @@ export const useFilesStore = create<FilesState>((set, get) => ({
     isLoading: false,
     selectedIds: new Set(),
     viewMode: 'list',
-    sortField: 'name',
-    sortOrder: 'asc',
+    sortField: 'lastModifiedDateTime',
+    sortOrder: 'desc',
     searchQuery: '',
     isSearching: false,
 

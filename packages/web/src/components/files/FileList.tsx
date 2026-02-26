@@ -1,4 +1,4 @@
-import { useFilesStore, type DriveItem } from '../../stores/files';
+import { useFilesStore, type DriveItem, type SortField } from '../../stores/files';
 import { formatFileSize } from '../../utils/file';
 import {
     Folder,
@@ -9,6 +9,8 @@ import {
     FileCode,
     File,
     MoreVertical,
+    ArrowUp,
+    ArrowDown,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -18,7 +20,7 @@ interface FileListProps {
 }
 
 export default function FileList({ onContextMenu, onOpen }: FileListProps) {
-    const { items, selectedIds, toggleSelectItem, clearSelection } = useFilesStore();
+    const { items, selectedIds, toggleSelectItem, clearSelection, sortField, sortOrder, setSort } = useFilesStore();
 
     const handleItemClick = (item: DriveItem, e: React.MouseEvent) => {
         if (e.ctrlKey || e.metaKey) {
@@ -43,14 +45,50 @@ export default function FileList({ onContextMenu, onOpen }: FileListProps) {
         }
     };
 
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSort(field, sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSort(field, field === 'lastModifiedDateTime' || field === 'size' ? 'desc' : 'asc');
+        }
+    };
+
+    const SortIcon = ({ field }: { field: SortField }) => {
+        if (sortField !== field) return null;
+        return sortOrder === 'asc'
+            ? <ArrowUp className="w-3.5 h-3.5" />
+            : <ArrowDown className="w-3.5 h-3.5" />;
+    };
+
     return (
         <div className="bg-white dark:bg-dark-800 rounded-xl shadow-sm overflow-hidden m-4">
             {/* 表头 */}
             <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-dark-50 dark:bg-dark-700/50 text-sm font-medium text-dark-500 dark:text-dark-400 border-b border-dark-200 dark:border-dark-700">
-                <div className="col-span-6">名称</div>
-                <div className="col-span-2">修改时间</div>
-                <div className="col-span-2">大小</div>
-                <div className="col-span-2 text-right">操作</div>
+                <div
+                    className="col-span-5 flex items-center gap-1 cursor-pointer hover:text-dark-700 dark:hover:text-dark-200 select-none"
+                    onClick={() => handleSort('name')}
+                >
+                    名称 <SortIcon field="name" />
+                </div>
+                <div
+                    className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-dark-700 dark:hover:text-dark-200 select-none"
+                    onClick={() => handleSort('lastModifiedDateTime')}
+                >
+                    修改时间 <SortIcon field="lastModifiedDateTime" />
+                </div>
+                <div
+                    className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-dark-700 dark:hover:text-dark-200 select-none"
+                    onClick={() => handleSort('type')}
+                >
+                    类型 <SortIcon field="type" />
+                </div>
+                <div
+                    className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-dark-700 dark:hover:text-dark-200 select-none"
+                    onClick={() => handleSort('size')}
+                >
+                    大小 <SortIcon field="size" />
+                </div>
+                <div className="col-span-1 text-right">操作</div>
             </div>
 
             {/* 文件列表 */}
@@ -94,7 +132,7 @@ function FileListItem({ item, isSelected, onClick, onDoubleClick, onContextMenu 
             onContextMenu={onContextMenu}
         >
             {/* 名称 */}
-            <div className="col-span-6 flex items-center gap-3 min-w-0">
+            <div className="col-span-5 flex items-center gap-3 min-w-0">
                 <div className={clsx('flex-shrink-0', getFileIconColor(item))}>
                     <IconComponent className="w-5 h-5" />
                 </div>
@@ -106,13 +144,18 @@ function FileListItem({ item, isSelected, onClick, onDoubleClick, onContextMenu 
                 {formatDate(item.lastModifiedDateTime)}
             </div>
 
+            {/* 类型 */}
+            <div className="col-span-2 flex items-center text-sm text-dark-500 dark:text-dark-400">
+                {getFileTypeLabel(item)}
+            </div>
+
             {/* 大小 */}
             <div className="col-span-2 flex items-center text-sm text-dark-500 dark:text-dark-400">
                 {item.folder ? `${item.folder.childCount} 项` : formatFileSize(item.size)}
             </div>
 
             {/* 操作 */}
-            <div className="col-span-2 flex items-center justify-end">
+            <div className="col-span-1 flex items-center justify-end">
                 <button
                     className="p-1.5 rounded-lg text-dark-400 hover:text-dark-600 dark:hover:text-dark-300 hover:bg-dark-100 dark:hover:bg-dark-600 transition-colors"
                     onClick={(e) => {
@@ -139,6 +182,25 @@ function getFileIconComponent(item: DriveItem) {
     if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf', 'txt', 'md'].includes(ext)) return FileText;
 
     return File;
+}
+
+function getFileTypeLabel(item: DriveItem): string {
+    if (item.folder) return '文件夹';
+
+    const ext = item.name.split('.').pop()?.toLowerCase() || '';
+
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return '图片';
+    if (['mp4', 'webm', 'mkv', 'avi', 'mov'].includes(ext)) return '视频';
+    if (['mp3', 'wav', 'ogg', 'flac', 'aac'].includes(ext)) return '音频';
+    if (['doc', 'docx'].includes(ext)) return 'Word 文档';
+    if (['xls', 'xlsx'].includes(ext)) return 'Excel 表格';
+    if (['ppt', 'pptx'].includes(ext)) return 'PPT 演示';
+    if (ext === 'pdf') return 'PDF 文档';
+    if (['txt', 'md'].includes(ext)) return '文本文件';
+    if (['js', 'ts', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'go', 'rs', 'html', 'css', 'json'].includes(ext)) return '代码文件';
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return '压缩包';
+
+    return ext ? ext.toUpperCase() + ' 文件' : '文件';
 }
 
 function getFileIconColor(item: DriveItem) {

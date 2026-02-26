@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useFilesStore, type DriveItem } from '../stores/files';
 import { fileService, oauthService, favoriteService } from '../services/api';
 import toast from 'react-hot-toast';
@@ -90,11 +90,12 @@ export default function DrivePage({ type }: DrivePageProps) {
     });
 
     // 获取文件列表
-    const { data, isLoading, error, refetch } = useQuery({
+    const { data, isLoading, isFetching, error, refetch } = useQuery({
         queryKey: ['files', folderId, sortField, sortOrder],
         queryFn: async () => {
-            // 只有当不是 'type' 排序时，才发送排序参数给后端
-            const orderby = sortField !== 'type' ? `${sortField} ${sortOrder}` : undefined;
+            // Graph API 仅支持 name 和 lastModifiedDateTime 排序，其他在客户端处理
+            const serverSortFields = ['name', 'lastModifiedDateTime'];
+            const orderby = serverSortFields.includes(sortField) ? `${sortField} ${sortOrder}` : undefined;
             const response = await fileService.list(folderId, orderby ? { orderby } : {});
 
             // 如果不是root，同时获取当前文件夹的信息以获取真实名字
@@ -117,6 +118,7 @@ export default function DrivePage({ type }: DrivePageProps) {
             return response;
         },
         enabled: !type && oauthStatus?.connected === true,
+        placeholderData: keepPreviousData,
     });
 
     // 更新当前文件夹
@@ -132,27 +134,35 @@ export default function DrivePage({ type }: DrivePageProps) {
     // 更新文件列表
     useEffect(() => {
         if (data?.success && data.data) {
-            let items = (data.data as { items: DriveItem[] }).items || [];
+            let fileItems = (data.data as { items: DriveItem[] }).items || [];
 
-            // 如果是按类型排序，在客户端进行排序
-            if (sortField === 'type') {
-                items = items.slice().sort((a, b) => {
-                    // 文件夹优先于文件
-                    const aIsFolder = !!a.folder;
-                    const bIsFolder = !!b.folder;
+            // 客户端排序：始终文件夹置顶，然后按选定字段排序
+            fileItems = fileItems.slice().sort((a, b) => {
+                // 文件夹始终排在最前面
+                const aIsFolder = !!a.folder;
+                const bIsFolder = !!b.folder;
+                if (aIsFolder !== bIsFolder) {
+                    return aIsFolder ? -1 : 1;
+                }
 
-                    if (aIsFolder !== bIsFolder) {
-                        return sortOrder === 'desc' ? (aIsFolder ? -1 : 1) : (aIsFolder ? 1 : -1);
-                    }
-
-                    // 同类型按名称排序
+                // 按类型排序时，同类型内按名称排
+                if (sortField === 'type') {
                     return sortOrder === 'asc'
                         ? a.name.localeCompare(b.name)
                         : b.name.localeCompare(a.name);
-                });
-            }
+                }
 
-            setItems(items);
+                // 按大小排序（Graph API 不支持，客户端处理）
+                if (sortField === 'size') {
+                    const diff = (a.size || 0) - (b.size || 0);
+                    return sortOrder === 'asc' ? diff : -diff;
+                }
+
+                // name 和 lastModifiedDateTime 由后端处理，同类别内保持后端顺序
+                return 0;
+            });
+
+            setItems(fileItems);
         }
     }, [data, setItems, sortField, sortOrder]);
 
@@ -411,7 +421,7 @@ export default function DrivePage({ type }: DrivePageProps) {
         );
     }
 
-    if (isLoading) {
+    if (isLoading && !data) {
         return (
             <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
@@ -488,8 +498,13 @@ export default function DrivePage({ type }: DrivePageProps) {
             </div>
 
             {/* 文件列表 */}
-            <div className="flex-1 overflow-auto">
-                {items.length === 0 ? (
+            <div className="flex-1 overflow-auto relative">
+                {isFetching && items.length > 0 && (
+                    <div className="absolute inset-0 bg-white/50 dark:bg-dark-800/50 z-10 flex items-center justify-center">
+                        <Loader2 className="w-6 h-6 text-primary-600 animate-spin" />
+                    </div>
+                )}
+                {items.length === 0 && !isFetching ? (
                     <div className="flex flex-col items-center justify-center h-full text-dark-500 dark:text-dark-400">
                         <p className="text-lg mb-2">此文件夹为空</p>
                         <p className="text-sm">拖拽文件到此处上传，或点击上传按钮</p>
