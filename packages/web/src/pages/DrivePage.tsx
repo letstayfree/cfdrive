@@ -18,7 +18,7 @@ import FileInfoModal from '../components/files/FileInfoModal';
 import SortDropdown from '../components/files/SortDropdown';
 import BatchActionsBar from '../components/files/BatchActionsBar';
 import Breadcrumb from '../components/layout/Breadcrumb';
-import { Loader2, Grid, List, RefreshCw, FolderPlus, AlertTriangle, Link2 } from 'lucide-react';
+import { Loader2, Grid, List, LayoutList, RefreshCw, FolderPlus, AlertTriangle, Link2 } from 'lucide-react';
 
 interface DrivePageProps {
     type?: 'favorites' | 'trash' | 'shares';
@@ -484,6 +484,16 @@ export default function DrivePage({ type }: DrivePageProps) {
                             <List className="w-5 h-5" />
                         </button>
                         <button
+                            onClick={() => setViewMode('thumbnail')}
+                            className={`p-2 transition-colors ${viewMode === 'thumbnail'
+                                ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
+                                : 'hover:bg-dark-100 dark:hover:bg-dark-700 text-dark-500'
+                                }`}
+                            title="小图视图"
+                        >
+                            <LayoutList className="w-5 h-5" />
+                        </button>
+                        <button
                             onClick={() => setViewMode('grid')}
                             className={`p-2 transition-colors ${viewMode === 'grid'
                                 ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-600'
@@ -511,6 +521,8 @@ export default function DrivePage({ type }: DrivePageProps) {
                     </div>
                 ) : viewMode === 'grid' ? (
                     <FileGrid onContextMenu={handleContextMenu} onOpen={handleOpen} />
+                ) : viewMode === 'thumbnail' ? (
+                    <FileList onContextMenu={handleContextMenu} onOpen={handleOpen} showThumbnails />
                 ) : (
                     <FileList onContextMenu={handleContextMenu} onOpen={handleOpen} />
                 )}

@@ -25,7 +25,7 @@ export interface DriveItem {
     }>;
 }
 
-export type ViewMode = 'list' | 'grid' | 'details';
+export type ViewMode = 'list' | 'grid' | 'thumbnail';
 export type SortField = 'name' | 'size' | 'lastModifiedDateTime' | 'type';
 export type SortOrder = 'asc' | 'desc';
 

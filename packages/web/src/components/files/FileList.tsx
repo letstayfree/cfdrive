@@ -17,9 +17,10 @@ import clsx from 'clsx';
 interface FileListProps {
     onContextMenu?: (e: React.MouseEvent, item: DriveItem) => void;
     onOpen?: (item: DriveItem) => void;
+    showThumbnails?: boolean;
 }
 
-export default function FileList({ onContextMenu, onOpen }: FileListProps) {
+export default function FileList({ onContextMenu, onOpen, showThumbnails }: FileListProps) {
     const { items, selectedIds, toggleSelectItem, clearSelection, sortField, sortOrder, setSort } = useFilesStore();
 
     const handleItemClick = (item: DriveItem, e: React.MouseEvent) => {
@@ -98,6 +99,7 @@ export default function FileList({ onContextMenu, onOpen }: FileListProps) {
                         key={item.id}
                         item={item}
                         isSelected={selectedIds.has(item.id)}
+                        showThumbnails={showThumbnails}
                         onClick={(e) => handleItemClick(item, e)}
                         onDoubleClick={() => handleDoubleClick(item)}
                         onContextMenu={(e) => handleContextMenu(e, item)}
@@ -111,18 +113,21 @@ export default function FileList({ onContextMenu, onOpen }: FileListProps) {
 interface FileListItemProps {
     item: DriveItem;
     isSelected: boolean;
+    showThumbnails?: boolean;
     onClick: (e: React.MouseEvent) => void;
     onDoubleClick: () => void;
     onContextMenu: (e: React.MouseEvent) => void;
 }
 
-function FileListItem({ item, isSelected, onClick, onDoubleClick, onContextMenu }: FileListItemProps) {
+function FileListItem({ item, isSelected, showThumbnails, onClick, onDoubleClick, onContextMenu }: FileListItemProps) {
     const IconComponent = getFileIconComponent(item);
+    const thumbnailUrl = showThumbnails && !item.folder ? item.thumbnails?.[0]?.small?.url : null;
 
     return (
         <div
             className={clsx(
-                'grid grid-cols-12 gap-4 px-4 py-3 cursor-pointer transition-colors',
+                'grid grid-cols-12 gap-4 px-4 cursor-pointer transition-colors',
+                showThumbnails ? 'py-2' : 'py-3',
                 isSelected
                     ? 'bg-primary-50 dark:bg-primary-900/20'
                     : 'hover:bg-dark-50 dark:hover:bg-dark-700/50'
@@ -133,9 +138,17 @@ function FileListItem({ item, isSelected, onClick, onDoubleClick, onContextMenu 
         >
             {/* 名称 */}
             <div className="col-span-5 flex items-center gap-3 min-w-0">
-                <div className={clsx('flex-shrink-0', getFileIconColor(item))}>
-                    <IconComponent className="w-5 h-5" />
-                </div>
+                {thumbnailUrl ? (
+                    <img
+                        src={thumbnailUrl}
+                        alt={item.name}
+                        className="w-8 h-8 rounded object-cover flex-shrink-0"
+                    />
+                ) : (
+                    <div className={clsx('flex-shrink-0', getFileIconColor(item))}>
+                        <IconComponent className="w-5 h-5" />
+                    </div>
+                )}
                 <span className="truncate text-dark-900 dark:text-dark-100">{item.name}</span>
             </div>
 
