@@ -128,6 +128,28 @@ export class OneDriveService {
     }
 
     /**
+     * 获取驱动器信息（包括配额）
+     */
+    async getDriveInfo(): Promise<{
+        id: string;
+        driveType: string;
+        quota: {
+            total: number;
+            used: number;
+            remaining: number;
+            state: string;
+        };
+        owner?: {
+            user?: {
+                displayName: string;
+                email?: string;
+            };
+        };
+    }> {
+        return this.graph.request('/drive?$select=id,driveType,quota,owner');
+    }
+
+    /**
      * 列出目录内容
      */
     async listFolder(

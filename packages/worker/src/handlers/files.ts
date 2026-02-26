@@ -14,6 +14,35 @@ function getOneDriveService(env: Env): OneDriveService {
 }
 
 /**
+ * 获取驱动器配额信息
+ * GET /drive/quota
+ */
+files.get('/drive/quota', async (c) => {
+    try {
+        const onedrive = getOneDriveService(c.env);
+        const driveInfo = await onedrive.getDriveInfo();
+
+        return c.json({
+            success: true,
+            data: {
+                total: driveInfo.quota.total,
+                used: driveInfo.quota.used,
+                remaining: driveInfo.quota.remaining,
+                state: driveInfo.quota.state,
+                driveType: driveInfo.driveType,
+                owner: driveInfo.owner,
+            },
+        });
+    } catch (error) {
+        console.error('Get drive quota error:', error);
+        return c.json({
+            success: false,
+            error: { code: 'DRIVE_QUOTA_ERROR', message: 'Failed to get drive quota' },
+        }, 500);
+    }
+});
+
+/**
  * 记录访问日志
  */
 async function logAccess(

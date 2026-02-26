@@ -94,6 +94,17 @@ export const api = {
     },
 };
 
+// 驱动器服务
+export const driveService = {
+    getQuota: () => api.get<{
+        total: number;
+        used: number;
+        remaining: number;
+        state: string;
+        driveType: string;
+    }>('/files/drive/quota'),
+};
+
 // 文件服务
 export const fileService = {
     list: (folderId: string = 'root', options?: { top?: number; skip?: number; orderby?: string }) => {
