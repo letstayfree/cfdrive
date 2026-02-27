@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install jszip@^3.10.1 simple-mind-map@^0.10.2 --save)",
+      "Bash(npx tsc --noEmit)"
+    ]
+  }
+}

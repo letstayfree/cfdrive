@@ -179,3 +179,14 @@
 .animate-scaleIn {
   animation: scaleIn 0.15s ease-out;
 }
+
+/* simple-mind-map 编辑态样式 */
+[contenteditable="true"] {
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  border: 2px solid #0ea5e9 !important;
+  caret-color: #0ea5e9 !important;
+  border-radius: 4px;
+  padding: 2px 4px;
+  outline: none;
+}

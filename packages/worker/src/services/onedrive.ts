@@ -295,6 +295,23 @@ export class OneDriveService {
     }
 
     /**
+     * 更新文件内容（覆盖已有文件）
+     */
+    async updateFileContent(
+        itemId: string,
+        content: ArrayBuffer | Uint8Array,
+        contentType: string = 'application/octet-stream'
+    ): Promise<DriveItem> {
+        return this.graph.request<DriveItem>(`/drive/items/${itemId}/content`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': contentType,
+            },
+            body: content,
+        });
+    }
+
+    /**
      * 小文件上传 (<4MB)
      */
     async uploadSmall(

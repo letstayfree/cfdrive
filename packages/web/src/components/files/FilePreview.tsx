@@ -3,6 +3,7 @@ import { X, Download, ChevronLeft, ChevronRight, Loader2, ExternalLink, FileText
 import { fileService } from '../../services/api';
 import type { DriveItem } from '../../stores/files';
 import { formatFileSize } from '../../utils/file';
+import XMindViewer from './XMindViewer';
 
 interface FilePreviewProps {
     item: DriveItem;
@@ -11,29 +12,31 @@ interface FilePreviewProps {
     onNavigate?: (item: DriveItem) => void;
 }
 
+// 确定文件类型（纯函数，放在组件外避免重复创建）
+type PreviewType = 'image' | 'video' | 'audio' | 'office' | 'pdf' | 'text' | 'xmind' | 'unsupported';
+function getFileType(fileName: string): PreviewType {
+    const ext = fileName.split('.').pop()?.toLowerCase() || '';
+
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
+    if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext)) return 'video';
+    if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext)) return 'audio';
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'office';
+    if (['pdf'].includes(ext)) return 'pdf';
+    if (ext === 'xmind') return 'xmind';
+    if (['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'py', 'java', 'go', 'rs'].includes(ext)) return 'text';
+
+    return 'unsupported';
+}
+
 export default function FilePreview({ item, items = [], onClose, onNavigate }: FilePreviewProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [previewType, setPreviewType] = useState<'image' | 'video' | 'audio' | 'office' | 'pdf' | 'text' | 'unsupported'>('unsupported');
+    const [previewType, setPreviewType] = useState<PreviewType>(() => getFileType(item.name));
     const [error, setError] = useState<string | null>(null);
 
     const currentIndex = items.findIndex(i => i.id === item.id);
     const hasPrev = currentIndex > 0;
     const hasNext = currentIndex < items.length - 1;
-
-    // 确定文件类型
-    const getFileType = (fileName: string): typeof previewType => {
-        const ext = fileName.split('.').pop()?.toLowerCase() || '';
-
-        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) return 'image';
-        if (['mp4', 'webm', 'mov', 'avi', 'mkv'].includes(ext)) return 'video';
-        if (['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a'].includes(ext)) return 'audio';
-        if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) return 'office';
-        if (['pdf'].includes(ext)) return 'pdf';
-        if (['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'py', 'java', 'go', 'rs'].includes(ext)) return 'text';
-
-        return 'unsupported';
-    };
 
     // 加载预览
     useEffect(() => {
@@ -66,6 +69,8 @@ export default function FilePreview({ item, items = [], onClose, onNavigate }: F
                     if (response.success && response.data) {
                         setPreviewUrl(response.data.previewUrl);
                     }
+                } else if (type === 'xmind') {
+                    // XMind 由 XMindViewer 组件自行加载，无需在此获取 URL
                 }
             } catch (err) {
                 setError('加载预览失败');
@@ -100,6 +105,11 @@ export default function FilePreview({ item, items = [], onClose, onNavigate }: F
             window.open(response.data.downloadUrl, '_blank');
         }
     };
+
+    // XMind 文件由 XMindViewer 独立渲染（全屏自带工具栏）
+    if (previewType === 'xmind') {
+        return <XMindViewer item={item} onClose={onClose} />;
+    }
 
     const renderPreview = () => {
         if (isLoading) {

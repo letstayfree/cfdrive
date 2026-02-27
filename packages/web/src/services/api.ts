@@ -136,6 +136,19 @@ export const fileService = {
 
     getPreviewUrl: (itemId: string) => api.get<{ previewUrl: string }>(`/files/${itemId}/preview`),
 
+    updateContent: async (itemId: string, buffer: ArrayBuffer): Promise<ApiResponse> => {
+        const token = useAuthStore.getState().token;
+        const response = await fetch(`${BASE_URL}/files/${itemId}/content`, {
+            method: 'PUT',
+            headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                'Content-Type': 'application/octet-stream',
+            },
+            body: buffer,
+        });
+        return response.json();
+    },
+
     getThumbnail: (itemId: string, size: 'small' | 'medium' | 'large' = 'medium') =>
         api.get<{ url: string }>(`/files/${itemId}/thumbnail?size=${size}`),
 

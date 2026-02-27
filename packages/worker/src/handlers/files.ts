@@ -43,6 +43,31 @@ files.get('/drive/quota', async (c) => {
 });
 
 /**
+ * 更新文件内容
+ * PUT /:id/content
+ */
+files.put('/:id/content', async (c) => {
+    try {
+        const itemId = c.req.param('id');
+        const onedrive = getOneDriveService(c.env);
+        const body = await c.req.arrayBuffer();
+
+        const result = await onedrive.updateFileContent(itemId, body);
+
+        return c.json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        console.error('Update file content error:', error);
+        return c.json({
+            success: false,
+            error: { code: 'UPDATE_CONTENT_ERROR', message: 'Failed to update file content' },
+        }, 500);
+    }
+});
+
+/**
  * 记录访问日志
  */
 async function logAccess(
