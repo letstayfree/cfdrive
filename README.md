@@ -320,3 +320,5 @@ MIT License
 ## 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
+
+Welcome to pull and issue!
